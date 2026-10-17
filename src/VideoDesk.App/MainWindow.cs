@@ -53,12 +53,11 @@ public sealed partial class MainWindow : Window
     private MpvHost? player;
     private VideoDetail? detail;
     private VideoPart? part;
-    private Slider? seek;
+    private PlaybackTimeline? seek;
     private TextBlock? timeText;
     private Button? pause;
     private ComboBox? quality;
-    private bool dragging,fullscreen;
-    private bool reloadPlayback;
+    private bool fullscreen;
     private DateTimeOffset lastSave;
     private Grid? playerPage,leftPlayer;
     private Border? playerFrame;
@@ -128,6 +127,7 @@ public sealed partial class MainWindow : Window
     }
     private CancellationToken BeginPage(bool rememberPage=true)
     {
+        CancelCollectionOpen();CancelStreamOpen();
         StopCardPreview();storyboardPreview?.Dispose();storyboardPreview=null;playerFeaturesSession?.Cancel();playerFeaturesSession?.Dispose();playerFeaturesSession=null;videoChapters=[];ReleasePageFocus();
         DismissFeedback();if(rememberPage)RememberPage();CloseDynamicSidebar(true);RememberSocialScroll();followingState=null;popularState=null;dynamicDetail=null;dynamicScroll=null;staticPage="";
         searchPopup.IsOpen=false;if(commentMenu!=null)commentMenu.IsOpen=false;if(composerPopup!=null)composerPopup.IsOpen=false;RememberFeedScroll();if(fullscreen)ToggleFullscreen();SaveProgress();_ = FlushCloudHistory();navigation.Cancel();navigation.Dispose();navigation=new();
@@ -162,18 +162,27 @@ public sealed partial class MainWindow : Window
     }
     private async Task ChangeQuality(int qn)
     {
-        if(reloadPlayback)return;reloadPlayback=true;
-        try{var ct=navigation.Token;var oldPosition=player!.Number("time-pos");var paused=player.Text("pause")=="yes";var stream=await api.GetPlayStream(detail!.Video.Bvid,part!.Cid,qn,ct);ct.ThrowIfCancellationRequested();PopulateQualities(stream);player.Load(stream,oldPosition);if(paused)player.Set("pause","yes");}
-        finally{reloadPlayback=false;}
+        if(player is not {MediaReady:true} host||detail==null||part==null)return;
+        CancelCollectionOpen();var request=BeginStreamOpen(navigation.Token);var ct=request.Token;
+        var bvid=detail.Video.Bvid;var cid=part.Cid;var revision=host.LoadRevision;
+        try
+        {
+            var stream=await api.GetPlayStream(bvid,cid,qn,ct);ct.ThrowIfCancellationRequested();
+            if(collectionOpen!=null||!ReferenceEquals(player,host)||host.LoadRevision!=revision||detail?.Video.Bvid!=bvid||part?.Cid!=cid)return;
+            var position=host.ResumePosition;var paused=host.Text("pause")=="yes";
+            PopulateQualities(stream);host.Load(stream,position);host.Set("pause",paused?"yes":"no");
+        }
+        catch(OperationCanceledException) when(ct.IsCancellationRequested){}
+        finally{EndStreamOpen(request);}
     }
-    private void TogglePause(){player?.Command("cycle","pause");overlay?.Danmaku.Wake();if(pause?.Content is PackIcon icon)icon.Kind=player?.Text("pause")=="yes"?PackIconKind.Play:PackIconKind.Pause;overlay?.ShowFeedback(player?.Text("pause")=="yes"?"暂停":"播放",0);}
+    private void TogglePause(){if(player?.CanInteract!=true)return;player.Command("cycle","pause");overlay?.Danmaku.Wake();if(pause?.Content is PackIcon icon)icon.Kind=player.Text("pause")=="yes"?PackIconKind.Play:PackIconKind.Pause;overlay?.ShowFeedback(player.Text("pause")=="yes"?"暂停":"播放",0);}
     private void PollPlayer(bool drainEvents=true)
     {
         if(player?.Ready!=true||part is null)return;
-        if(drainEvents)player.PumpEvents();if(overlay!=null&&player.Number("video-params/h")>0)overlay.Danmaku.VideoAspect=player.Number("video-params/w")/player.Number("video-params/h");var pos=player.Number("time-pos");var duration=Math.Max(part.Duration,player.Number("duration"));if(player.Number("video-params/w")>0)RequestDanmakuWindow(pos);
+        if(drainEvents)player.PumpEvents();if(player?.MediaReady!=true||part==null)return;if(overlay!=null&&player.Number("video-params/h")>0)overlay.Danmaku.VideoAspect=player.Number("video-params/w")/player.Number("video-params/h");var pos=player.Number("time-pos");var duration=Math.Max(part.Duration,player.Number("duration"));if(player.Number("video-params/w")>0)RequestDanmakuWindow(pos);
         var playbackTick=Stopwatch.GetTimestamp();if(lastPlaybackTick>0&&player.Text("pause")!="yes"&&player.Number("video-params/w")>0)playedSeconds+=Math.Min(1,Stopwatch.GetElapsedTime(lastPlaybackTick,playbackTick).TotalSeconds);lastPlaybackTick=playbackTick;
-        if(seek!=null){seek.Maximum=Math.Max(1,duration);if(!dragging)seek.Value=pos;}
-        if(seek is PlaybackTimeline timeline&&DateTime.UtcNow-lastBufferPoll>TimeSpan.FromMilliseconds(600)){timeline.SetBuffered(player.CachedRanges());lastBufferPoll=DateTime.UtcNow;}
+        if(seek!=null){seek.Maximum=Math.Max(1,duration);if(!player.Seeking)seek.SetPlaybackPosition(pos);}
+        if(seek is {} timeline&&DateTime.UtcNow-lastBufferPoll>TimeSpan.FromMilliseconds(600)){timeline.SetBuffered(player.CachedRanges());lastBufferPoll=DateTime.UtcNow;}
         if(timeText!=null)timeText.Text=BilibiliClient.DurationLabel(pos)+" / "+BilibiliClient.DurationLabel(duration);
         UpdatePlayerFeatures(pos);
         if(pause?.Content is PackIcon pauseIcon)pauseIcon.Kind=player.Text("pause")=="yes"?PackIconKind.Play:PackIconKind.Pause;
@@ -192,7 +201,8 @@ public sealed partial class MainWindow : Window
     {
         if(e.Key==Key.Left&&Keyboard.Modifiers==ModifierKeys.Alt){e.Handled=true;_ = Run(GoBack);return;}
         if(e.Key==Key.Escape){searchPopup.IsOpen=false;if(fullscreen)ToggleFullscreen();return;}
-        if(player?.Ready!=true||Keyboard.FocusedElement is TextBoxBase or ComboBox or ComboBoxItem or MenuItem)return;
+        if(Keyboard.FocusedElement is PlaybackTimeline&&e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)return;
+        if(player?.CanInteract!=true||Keyboard.FocusedElement is TextBoxBase or ComboBox or ComboBoxItem or MenuItem)return;
         if(e.Key==Key.Space){TogglePause();e.Handled=true;}else if(e.Key is Key.Left or Key.Right){player.Command("seek",e.Key==Key.Left?"-5":"5","relative");overlay?.ShowFeedback(e.Key==Key.Left?"后退 5 秒":"前进 5 秒",e.Key==Key.Left?-1:1);e.Handled=true;}else if(e.Key==Key.F){ToggleFullscreen();e.Handled=true;}
     }
     private void ToggleFullscreen()

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
 using VideoDesk.Core;
@@ -20,11 +21,13 @@ internal sealed class PlaybackTimeline : Slider
     private static readonly Brush BufferBrush=FrozenBrush(Color.FromArgb(210,225,230,239));
     private static readonly Brush HeatBrush=FrozenBrush(Color.FromArgb(110,255,255,255));
     public VideoHeatmap? Heatmap=>heatmap;
+    public bool IsScrubbing {get;private set;}
+    public event Action<double>? SeekRequested;
     internal Brush TrackBackground {get;set;}=BaseBrush;
     public IReadOnlyList<(double Start,double End)> BufferedRanges=>ranges;
     public PlaybackTimeline()
     {
-        Style=null;Height=40;Background=Brushes.Transparent;IsMoveToPointEnabled=true;
+        Style=null;Height=40;Background=Brushes.Transparent;SmallChange=5;LargeChange=10;
         Template=(ControlTemplate)XamlReader.Parse("""
         <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" TargetType="Slider">
           <Grid Background="Transparent">
@@ -37,6 +40,62 @@ internal sealed class PlaybackTimeline : Slider
           </Grid>
         </ControlTemplate>
         """);ValueChanged+=(_,_)=>InvalidateVisual();SizeChanged+=(_,_)=>Rebuild();
+        Unloaded+=(_,_)=>CancelScrub();
+        IsEnabledChanged+=(_,_)=>{if(!IsEnabled)CancelScrub();};
+        IsVisibleChanged+=(_,_)=>{if(!IsVisible)CancelScrub();};
+    }
+    // Own the whole gesture. Slider's move-to-point class handler consumes the
+    // down event before ordinary handlers can protect the value from polling.
+    public void SetPlaybackPosition(double position){if(!IsScrubbing)Value=position;}
+    public void CancelScrub()
+    {
+        IsScrubbing=false;
+        if(IsMouseCaptured)ReleaseMouseCapture();
+    }
+    private void MoveTo(Point point)
+    {
+        // Use the drawn track's inset, independent of a pending thumb layout.
+        var fraction=Math.Clamp((point.X-7)/Math.Max(1,ActualWidth-14),0,1);
+        SetCurrentValue(ValueProperty,Minimum+fraction*(Maximum-Minimum));
+    }
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        if(!IsEnabled)return;
+        Focus();IsScrubbing=true;
+        if(!CaptureMouse()){IsScrubbing=false;return;}
+        MoveTo(e.GetPosition(this));e.Handled=true;
+    }
+    protected override void OnPreviewMouseMove(MouseEventArgs e)
+    {
+        if(IsScrubbing&&e.LeftButton==MouseButtonState.Pressed)MoveTo(e.GetPosition(this));
+        base.OnPreviewMouseMove(e);
+    }
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        if(!IsScrubbing){base.OnPreviewMouseLeftButtonUp(e);return;}
+        MoveTo(e.GetPosition(this));var target=Value;CancelScrub();
+        e.Handled=true;SeekRequested?.Invoke(target);
+    }
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        var commit=IsScrubbing;IsScrubbing=false;base.OnLostMouseCapture(e);
+        if(commit&&IsEnabled&&IsVisible)SeekRequested?.Invoke(Value);
+    }
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        var target=e.Key switch
+        {
+            Key.Left or Key.Down=>Value-SmallChange,
+            Key.Right or Key.Up=>Value+SmallChange,
+            Key.PageDown=>Value-LargeChange,
+            Key.PageUp=>Value+LargeChange,
+            Key.Home=>Minimum,
+            Key.End=>Maximum,
+            _=>double.NaN
+        };
+        if(!IsEnabled||!double.IsFinite(target)){base.OnPreviewKeyDown(e);return;}
+        SetCurrentValue(ValueProperty,Math.Clamp(target,Minimum,Maximum));
+        e.Handled=true;SeekRequested?.Invoke(Value);
     }
     public void SetHeatmap(VideoHeatmap? value){heatmap=value;Rebuild();}
     public void SetBuffered(IReadOnlyList<(double Start,double End)> value){ranges=value;InvalidateVisual();}

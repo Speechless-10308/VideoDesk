@@ -10,7 +10,7 @@ internal sealed class ImageCache : IDisposable
     private readonly string directory;
     public long MaxDiskBytes {get;set;}=192*1048576;
     private int trimming,generation;
-    public ImageCache(string directory){this.directory=Directory.CreateDirectory(directory).FullName;http=new();http.Timeout=TimeSpan.FromSeconds(15);bitmaps=new(lifetime.Token);files=new(lifetime.Token);http.DefaultRequestHeaders.UserAgent.ParseAdd(VideoDesk.Core.BilibiliClient.UserAgent);http.DefaultRequestHeaders.Referrer=new Uri("https://www.bilibili.com/");TrimDisk();}
+    public ImageCache(string directory,HttpMessageHandler? handler=null){this.directory=Directory.CreateDirectory(directory).FullName;http=handler==null?new():new(handler);http.Timeout=TimeSpan.FromSeconds(15);bitmaps=new(lifetime.Token);files=new(lifetime.Token);http.DefaultRequestHeaders.UserAgent.ParseAdd(VideoDesk.Core.BilibiliClient.UserAgent);http.DefaultRequestHeaders.Referrer=new Uri("https://www.bilibili.com/");TrimDisk();}
     private readonly HttpClient http;
     private readonly CancellationTokenSource lifetime=new();
     private readonly SharedImageRequests<(string Url,int Width),BitmapSource?> bitmaps;
@@ -43,15 +43,13 @@ internal sealed class ImageCache : IDisposable
             if(bytes==null)return null;
             async Task<BitmapImage> Decode(byte[] data)=>await Task.Run(()=>
             {
-                ct.ThrowIfCancellationRequested();using var memory=new MemoryStream(data);
-                var result=new BitmapImage();result.BeginInit();result.CacheOption=BitmapCacheOption.OnLoad;
-                int decodeWidth=width;
-                if(width<0)
-                {
-                    var decoder=BitmapDecoder.Create(memory,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None);var frame=decoder.Frames[0];
-                    decodeWidth=Math.Max(1,Math.Min(frame.PixelWidth,(int)Math.Min(-width,(long)-width*frame.PixelWidth/frame.PixelHeight)));memory.Position=0;
-                }
-                result.DecodePixelWidth=decodeWidth;result.StreamSource=memory;result.EndInit();result.Freeze();return result;
+                ct.ThrowIfCancellationRequested();using var memory=new ImageDecodeStream(data);
+                var decoder=BitmapDecoder.Create(memory,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None);var frame=decoder.Frames[0];
+                var scale=width<0?Math.Min(1,-(double)width/Math.Max(frame.PixelWidth,frame.PixelHeight)):Math.Min(1,(double)width/frame.PixelWidth);
+                // Long originals must not bypass the memory budget merely
+                // because the requested display width is small.
+                scale=Math.Min(scale,Math.Sqrt(8_388_608d/((long)frame.PixelWidth*frame.PixelHeight)));
+                return DecodeBitmap(memory,frame.PixelWidth,frame.PixelHeight,scale,ct);
             },ct).ConfigureAwait(false);
             BitmapImage bitmap;
             try{bitmap=await Decode(bytes);}catch(Exception e) when(e is NotSupportedException or IOException or System.Runtime.InteropServices.COMException)
@@ -93,15 +91,20 @@ internal sealed class ImageCache : IDisposable
     }
     internal static ViewerPicture DecodeViewerPicture(byte[] bytes,CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();using var memory=new MemoryStream(bytes);
+        ct.ThrowIfCancellationRequested();using var memory=new ImageDecodeStream(bytes);
         var decoder=BitmapDecoder.Create(memory,BitmapCreateOptions.DelayCreation,BitmapCacheOption.None);
         var frame=decoder.Frames[0];int width=frame.PixelWidth,height=frame.PixelHeight;
         // Bound decoded memory even for extremely long screenshots. Full bytes
         // remain on disk and downloads always preserve the original encoding.
         var scale=Math.Min(1,Math.Sqrt(16_777_216d/((long)width*height)));
-        memory.Position=0;var bitmap=new BitmapImage();bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;
-        bitmap.DecodePixelWidth=Math.Max(1,(int)(width*scale));bitmap.StreamSource=memory;bitmap.EndInit();bitmap.Freeze();
+        var bitmap=DecodeBitmap(memory,width,height,scale,ct);
         ct.ThrowIfCancellationRequested();return new(bitmap,width,height);
+    }
+    private static BitmapImage DecodeBitmap(Stream stream,int width,int height,double scale,CancellationToken ct)
+    {
+        stream.Position=0;var bitmap=new BitmapImage();bitmap.BeginInit();bitmap.CacheOption=BitmapCacheOption.OnLoad;
+        bitmap.DecodePixelWidth=Math.Max(1,(int)(width*scale));bitmap.DecodePixelHeight=Math.Max(1,(int)(height*scale));
+        bitmap.StreamSource=stream;bitmap.EndInit();ct.ThrowIfCancellationRequested();bitmap.Freeze();return bitmap;
     }
     private async Task<byte[]?> ReadBytes(string url,int requestGeneration,CancellationToken ct)
     {

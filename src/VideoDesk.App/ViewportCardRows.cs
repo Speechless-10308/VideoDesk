@@ -29,7 +29,7 @@ internal sealed class ViewportCardRows<T> : Panel
         this.getScroll=getScroll;this.getColumns=getColumns;this.createCard=createCard;this.group=group;this.frame=frame;this.gutter=gutter;
         Loaded+=(_,_)=>Attach();Unloaded+=(_,_)=>Suspend();IsVisibleChanged+=(_,_)=>{if(IsVisible&&IsLoaded)Attach();else Suspend();};
     }
-    internal void SetItems(IEnumerable<T> values){items=values.ToArray();Reflow();InvalidateMeasure();}
+    internal void SetItems(IEnumerable<T> values){var next=values.ToArray();if(group==null&&items.AsSpan().SequenceEqual(next))return;items=next;Reflow();InvalidateMeasure();}
     internal void Append(IEnumerable<T> values){SetItems(items.Concat(values));}
     internal async Task PrepareFirstViewportAsync(double availableWidth,double viewportHeight,CancellationToken ct)
     {
@@ -38,9 +38,13 @@ internal sealed class ViewportCardRows<T> : Panel
         Measure(new Size(availableWidth,double.PositiveInfinity));var stamp=version;var count=Math.Min(rows.Length,(int)Math.Ceiling(viewportHeight/rowHeight)+1);var slice=Stopwatch.StartNew();
         for(int index=0;index<count;index++)
         {
-            ct.ThrowIfCancellationRequested();if(stamp!=version)return;if(live.ContainsKey(index))continue;var row=rows[index];var cards=new UniformGrid{Columns=columns,VerticalAlignment=VerticalAlignment.Top};
-            foreach(var item in row.Items){ct.ThrowIfCancellationRequested();cards.Children.Add(createCard(item));if(slice.Elapsed.TotalMilliseconds>=3){await Dispatcher.Yield(DispatcherPriority.Background);slice.Restart();}}
-            if(stamp!=version)return;var element=frame?.Invoke(row.Label,row.First,cards)??cards;live[index]=element;Children.Add(element);element.Measure(new Size(availableWidth,rowHeight));
+            ct.ThrowIfCancellationRequested();if(stamp!=version)return;if(live.ContainsKey(index))continue;var row=rows[index];var cards=new UniformGrid{Columns=columns,VerticalAlignment=VerticalAlignment.Top};var published=false;
+            try
+            {
+                foreach(var item in row.Items){ct.ThrowIfCancellationRequested();if(stamp!=version)return;cards.Children.Add(createCard(item));if(slice.Elapsed.TotalMilliseconds>=3){await Dispatcher.Yield(DispatcherPriority.Background);slice.Restart();}}
+                if(stamp!=version)return;var element=frame?.Invoke(row.Label,row.First,cards)??cards;if(stamp!=version)return;live[index]=element;Children.Add(element);published=true;element.Measure(new Size(availableWidth,rowHeight));
+            }
+            finally{if(!published)VisualTree.ReleaseImages(cards);}
             if(slice.Elapsed.TotalMilliseconds>=3){await Dispatcher.Yield(DispatcherPriority.Background);slice.Restart();}
         }
         ct.ThrowIfCancellationRequested();
@@ -48,8 +52,7 @@ internal sealed class ViewportCardRows<T> : Panel
     private void Attach(){var owner=getScroll();if(!ReferenceEquals(scroll,owner)){if(scroll!=null)scroll.ScrollChanged-=Scrolled;scroll=owner;if(scroll!=null)scroll.ScrollChanged+=Scrolled;}awaitingArrange=true;InvalidateArrange();Queue();}
     private void Suspend(){version++;awaitingArrange=true;if(scroll!=null)scroll.ScrollChanged-=Scrolled;scroll=null;if(!RetainOnSuspend)ReleaseRetainedRows();}
     internal void ReleaseRetainedRows(){foreach(var index in live.Keys.ToArray())DropRow(index);}
-    private void DropRow(int index){var element=live[index];Children.Remove(element);ReleaseImages(element);live.Remove(index);}
-    private static void ReleaseImages(DependencyObject element){if(element is Image image)image.Source=null;for(int i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(element);i++)ReleaseImages(System.Windows.Media.VisualTreeHelper.GetChild(element,i));}
+    private void DropRow(int index){var element=live[index];Children.Remove(element);VisualTree.ReleaseImages(element);live.Remove(index);}
     private void Scrolled(object sender,ScrollChangedEventArgs e){if(ReferenceEquals(e.OriginalSource,scroll))Queue();}
     private void Reflow()
     {
@@ -81,7 +84,7 @@ internal sealed class ViewportCardRows<T> : Panel
     }
     private (int First,int Last) Range()
     {
-        if(scroll==null||!IsVisible||rowHeight<=0)return (0,-1);
+        if(scroll==null||!scroll.IsAncestorOf(this)||!IsVisible||rowHeight<=0)return (0,-1);
         var y=TransformToAncestor(scroll).Transform(new Point()).Y;
         var viewport=scroll.ViewportHeight>0?scroll.ViewportHeight:scroll.ActualHeight;
         return (Math.Max(0,(int)Math.Floor((-y-rowHeight)/rowHeight)),Math.Min(rows.Length-1,(int)Math.Ceiling((-y+viewport+rowHeight)/rowHeight)-1));
@@ -99,14 +102,21 @@ internal sealed class ViewportCardRows<T> : Panel
                     foreach(var index in live.Keys.Where(i=>i<first||i>last).ToArray())DropRow(index);
                     for(int index=first;index<=last;index++)
                     {
-                        if(live.ContainsKey(index))continue;var row=rows[index];var cards=new UniformGrid{Columns=columns,VerticalAlignment=VerticalAlignment.Top};var slice=Stopwatch.StartNew();
-                        foreach(var item in row.Items)
+                        // The previous row yielded to layout. A resize can have
+                        // replaced rows with a shorter array before we resume.
+                        if(stamp!=version||!IsLoaded||!IsVisible)return;
+                        if(live.ContainsKey(index))continue;var row=rows[index];var cards=new UniformGrid{Columns=columns,VerticalAlignment=VerticalAlignment.Top};var slice=Stopwatch.StartNew();var published=false;
+                        try
                         {
-                            if(stamp!=version||!IsVisible)return;cards.Children.Add(createCard(item));
-                            if(slice.Elapsed.TotalMilliseconds>=3){await Dispatcher.Yield(DispatcherPriority.Background);slice.Restart();}
+                            foreach(var item in row.Items)
+                            {
+                                if(stamp!=version||!IsLoaded||!IsVisible)return;cards.Children.Add(createCard(item));
+                                if(slice.Elapsed.TotalMilliseconds>=3){await Dispatcher.Yield(DispatcherPriority.Background);slice.Restart();}
+                            }
+                            if(stamp!=version||!IsLoaded||!IsVisible)return;var current=Range();if(index<current.First||index>current.Last)continue;
+                            var element=frame?.Invoke(row.Label,row.First,cards)??cards;if(stamp!=version||!IsLoaded||!IsVisible)return;live[index]=element;Children.Add(element);published=true;
                         }
-                        if(stamp!=version||!IsVisible)return;var current=Range();if(index<current.First||index>current.Last)continue;
-                        var element=frame?.Invoke(row.Label,row.First,cards)??cards;live[index]=element;Children.Add(element);
+                        finally{if(!published)VisualTree.ReleaseImages(cards);}
                         // Give layout, render and input a turn before publishing the next row.
                         await Dispatcher.Yield(DispatcherPriority.Background);
                     }

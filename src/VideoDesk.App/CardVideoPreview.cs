@@ -23,7 +23,7 @@ internal sealed class CardVideoPreview : IDisposable
     private Rect bounds;
     private bool disposed,shown;
     private readonly DateTime created=DateTime.UtcNow;
-    internal bool Ready=>player.Ready&&player.Number("video-params/w")>0;
+    internal bool Ready=>player.CanInteract;
     internal double Position=>player.Number("time-pos");
     internal bool Muted=>player.Text("mute")=="yes";
     internal int MessageCount=>danmaku.MessageCount;
@@ -33,7 +33,8 @@ internal sealed class CardVideoPreview : IDisposable
         this.owner=owner;this.anchor=anchor;this.stopped=stopped;this.pointerInside=pointerInside??(()=>ContainsPointer(anchor));player=new(hardware,preview:true);
         videoWindow=new(){Owner=owner,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowActivated=false,ShowInTaskbar=false,Background=Brushes.Black,Content=player,Width=1,Height=1};
         var prefs=new DanmakuPreferences{FontScale=.6,Area=.38,Opacity=settings.Opacity,Fixed=false,Advanced=false,PersonMask=false,Colored=settings.Colored,FontFamily=settings.FontFamily,BlockedWords=settings.BlockedWords,SyncedFilters=settings.SyncedFilters.ToList(),ScaleWithFullscreen=false,Speed=1.1};
-        danmaku=new(()=>player.Ready?(player.Number("time-pos"),player.Text("pause")=="yes"||player.Text("paused-for-cache")=="yes",1):(0,true,1),prefs){IsHitTestVisible=false};
+        danmaku=new(()=>player.Ready?(player.Number("time-pos"),player.Text("pause")=="yes"||player.Text("paused-for-cache")=="yes",1):(0,true,1),prefs,()=>!player.CanInteract||player.Seeking){IsHitTestVisible=false};
+        player.StateChanged+=name=>{if(name=="seeking")danmaku.Wake();};
         var surface=new Grid{Background=new SolidColorBrush(Color.FromArgb(1,0,0,0)),ClipToBounds=true};surface.Children.Add(danmaku);surface.Children.Add(time);later.HorizontalAlignment=HorizontalAlignment.Right;later.VerticalAlignment=VerticalAlignment.Top;later.Margin=new(6);later.Focusable=false;later.IsTabStop=false;surface.Children.Add(later);
         chrome=new(){Owner=owner,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowActivated=false,ShowInTaskbar=false,AllowsTransparency=true,Background=Brushes.Transparent,Content=surface,Width=1,Height=1,UseLayoutRounding=true,FontFamily=owner.FontFamily};
         chrome.Closed+=(_,_)=>Dispose();videoWindow.Closed+=(_,_)=>Dispose();

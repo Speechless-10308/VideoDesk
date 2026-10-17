@@ -65,20 +65,19 @@ public sealed partial class MainWindow
         }
         finally{if(laterAccount==mid){laterBusy.Remove(video.Aid);LaterChanged?.Invoke();}}
     }
-    private Button LaterButton(VideoCard video,bool compact=false)
+    private Button LaterButton(VideoCard video)
     {
-        var button=IconButton(PackIconKind.ClockPlusOutline,"添加到稍后再看",32);button.Height=32;button.Padding=new(6);button.Foreground=compact?Brushes.White:Muted;
-        if(compact)button.Background=new SolidColorBrush(Color.FromArgb(185,25,25,30));
-        var row=new StackPanel{Orientation=Orientation.Horizontal};var icon=Icon(PackIconKind.ClockPlusOutline,20);row.Children.Add(icon);var label=Text("添加到稍后再看",12);label.Foreground=compact?Brushes.White:Ink;label.VerticalAlignment=VerticalAlignment.Center;label.Margin=new(5,0,2,0);label.Visibility=compact?Visibility.Collapsed:Visibility.Visible;row.Children.Add(label);button.Content=row;button.Width=double.NaN;
+        var button=IconButton(PackIconKind.ClockPlusOutline,"添加到稍后再看",32);button.Height=32;button.Padding=new(6);button.Foreground=Brushes.White;button.Background=new SolidColorBrush(Color.FromArgb(185,25,25,30));
+        var row=new StackPanel{Orientation=Orientation.Horizontal};var icon=Icon(PackIconKind.ClockPlusOutline,20);row.Children.Add(icon);var label=Text("添加到稍后再看",12);label.Foreground=Brushes.White;label.VerticalAlignment=VerticalAlignment.Center;label.Margin=new(5,0,2,0);label.Visibility=Visibility.Collapsed;row.Children.Add(label);button.Content=row;button.Width=double.NaN;
         void Update(){var added=laterKnown.Contains(video.Aid);icon.Kind=added?PackIconKind.ClockCheckOutline:PackIconKind.ClockPlusOutline;label.Text=added?"从稍后再看移除":"添加到稍后再看";button.ToolTip=null;AutomationProperties.SetName(button,label.Text);button.IsEnabled=!laterBusy.Contains(video.Aid);}
         Update();button.Loaded+=(_,_)=>{LaterChanged+=Update;Update();};button.Unloaded+=(_,_)=>LaterChanged-=Update;
-        button.MouseEnter+=(_,_)=>label.Visibility=Visibility.Visible;button.MouseLeave+=(_,_)=>{if(compact&&!button.IsKeyboardFocusWithin)label.Visibility=Visibility.Collapsed;};button.GotKeyboardFocus+=(_,_)=>label.Visibility=Visibility.Visible;button.LostKeyboardFocus+=(_,_)=>{if(compact&&!button.IsMouseOver)label.Visibility=Visibility.Collapsed;};
+        button.MouseEnter+=(_,_)=>label.Visibility=Visibility.Visible;button.MouseLeave+=(_,_)=>{if(!button.IsKeyboardFocusWithin)label.Visibility=Visibility.Collapsed;};button.GotKeyboardFocus+=(_,_)=>label.Visibility=Visibility.Visible;button.LostKeyboardFocus+=(_,_)=>{if(!button.IsMouseOver)label.Visibility=Visibility.Collapsed;};
         button.Click+=async(_,e)=>{e.Handled=true;await Run(()=>SetLater(video,!laterKnown.Contains(video.Aid)));};return button;
     }
     private void AddLaterMenu(FrameworkElement tile,VideoCard video)
     {
-        var menu=tile.ContextMenu??=new ContextMenu();var item=new MenuItem{Header="添加到稍后再看"};
-        menu.Opened+=(_,_)=>{item.Header=laterKnown.Contains(video.Aid)?"从稍后再看移除":"添加到稍后再看";item.IsEnabled=!laterBusy.Contains(video.Aid);};
+        var menu=tile.ContextMenu??=new ContextMenu();var icon=Icon(PackIconKind.ClockPlusOutline,18);var item=new MenuItem{Header="添加到稍后再看",Icon=icon};
+        menu.Opened+=(_,_)=>{var added=laterKnown.Contains(video.Aid);item.Header=added?"从稍后再看移除":"添加到稍后再看";icon.Kind=added?PackIconKind.ClockCheckOutline:PackIconKind.ClockPlusOutline;item.IsEnabled=!laterBusy.Contains(video.Aid);};
         item.Click+=async(_,e)=>{e.Handled=true;await Run(()=>SetLater(video,!laterKnown.Contains(video.Aid)));};menu.Items.Add(item);
     }
     private async Task OpenLaterVideo(WatchLaterItem item)

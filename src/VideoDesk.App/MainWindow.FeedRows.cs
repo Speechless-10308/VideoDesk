@@ -8,7 +8,7 @@ public sealed partial class MainWindow
 {
     private void ReflowFeedRows(FeedState state)
     {
-        var columns=CardColumns();var changed=new HashSet<FeedBatch>();
+        var columns=CardColumns();state.Columns=columns;var changed=new HashSet<FeedBatch>();
         for(int i=0;i+1<state.Batches.Count;i++)
         {
             var batch=state.Batches[i];var missing=(columns-batch.Videos.Count%columns)%columns;

@@ -51,7 +51,7 @@ public sealed partial class MainWindow
             var captureState=Text("",12);captureState.Foreground=Muted;var inspect=Button("查看归档状态");inspect.Click+=(_,_)=>{var state=captures.Status;captureState.Text=$"待写 {state.Pending} · 已保存 {state.Written} · 跳过 {state.Skipped} · 失败 {state.Failed}"+(state.Error is null?"":" · "+state.Error);};Row(diagnostic,"后台保存状态",inspect);diagnostic.Children.Add(captureState);
             var open=Button("打开抓包目录");open.Click+=(_,_)=>{if(!Directory.Exists(captures.Root)){Notify("尚未生成诊断档案");return;}System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe",captures.Root){UseShellExecute=true});};Row(diagnostic,"已保存的诊断档案",open);
         }
-        var version=GetType().Assembly.GetName().Version??new Version(0,1,1);
+        var version=GetType().Assembly.GetName().Version??new Version(0,1,2);
         var about=Card("关于");var updates=Button("检查更新");updates.Height=44;updates.Padding=new Thickness(18,0,18,0);Uri? releasePage=null;
         updates.Click+=async(_,_)=>await Run(async()=>
         {

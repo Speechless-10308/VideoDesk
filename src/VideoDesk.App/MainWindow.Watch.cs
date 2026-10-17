@@ -16,15 +16,13 @@ public sealed partial class MainWindow
     private int collectionPage=1;
     private TextBlock? onlineText;
     private DateTime lastBufferPoll;
-    private double initialDanmakuSeconds;
 
     private FrameworkElement IdentityName(TextBlock name,int level=-1,bool senior=false,long mid=0,UserIdentity? identity=null)
     {
-        var row=new Grid();row.ColumnDefinitions.Add(new(){Width=GridLength.Auto});row.ColumnDefinitions.Add(new(){Width=GridLength.Auto});row.ColumnDefinitions.Add(new(){Width=GridLength.Auto});row.ColumnDefinitions.Add(new());row.Children.Add(name);
-        var levelSlot=new ContentControl{Margin=new Thickness(6,0,0,0),VerticalAlignment=VerticalAlignment.Center,Visibility=Visibility.Collapsed};Grid.SetColumn(levelSlot,1);row.Children.Add(levelSlot);var vipSlot=new ContentControl{Margin=new Thickness(6,0,0,0),VerticalAlignment=VerticalAlignment.Center,Visibility=Visibility.Collapsed};Grid.SetColumn(vipSlot,2);row.Children.Add(vipSlot);
+        var levelSlot=new ContentControl{Margin=new Thickness(6,0,0,0),VerticalAlignment=VerticalAlignment.Center,Visibility=Visibility.Collapsed};var vipSlot=new ContentControl{Margin=new Thickness(6,0,0,0),VerticalAlignment=VerticalAlignment.Center,Visibility=Visibility.Collapsed};var row=new IdentityNameRow(name,levelSlot,vipSlot);
         void ApplyLevel(int n,bool advanced){if(n<0||n>6)return;levelSlot.Content=OfficialIcons.Level(n,advanced,name.FontSize>=20?16:12);levelSlot.Visibility=Visibility.Visible;}
         void ApplyIdentity(UserIdentity? value){vipSlot.Content=VipBadge(value);vipSlot.Visibility=vipSlot.Content==null?Visibility.Collapsed:Visibility.Visible;if(value?.IsVip==true&&value.NicknameColor.Length>0)name.Foreground=IdentityColor(value.NicknameColor,name.Foreground);}
-        ApplyLevel(level,senior);ApplyIdentity(identity);row.SizeChanged+=(_,e)=>name.MaxWidth=Math.Max(24,e.NewSize.Width-levelSlot.ActualWidth-vipSlot.ActualWidth-12);
+        ApplyLevel(level,senior);ApplyIdentity(identity);
         if(mid<=0||level>=0&&identity!=null)return row;var ct=navigation.Token;
         row.Loaded+=async(_,_)=>{try{var summary=await CreatorSummaryCached(mid,ct);if(ct.IsCancellationRequested||!row.IsLoaded)return;if(level<0)ApplyLevel(summary.Level,summary.Senior);if(identity==null)ApplyIdentity(summary.Identity);}catch(OperationCanceledException){}catch(Exception error){Debug.WriteLine(error.Message);}};return row;
     }
@@ -49,7 +47,30 @@ public sealed partial class MainWindow
     }
     private void BuildVideoUnderlay(FrameworkElement actions)
     {
-        var body=new StackPanel();var row=new DockPanel{Margin=new Thickness(0,0,0,4)};onlineText=Text("正在获取观看人数…",12);onlineText.Foreground=Muted;onlineText.VerticalAlignment=VerticalAlignment.Center;onlineText.Margin=new Thickness(20,0,10,0);DockPanel.SetDock(onlineText,Dock.Right);row.Children.Add(onlineText);actions.Width=380;actions.HorizontalAlignment=HorizontalAlignment.Left;row.Children.Add(actions);body.Children.Add(row);
+        var body=new StackPanel();onlineText=Text("正在获取观看人数…",12);onlineText.Foreground=Muted;
+        var more=IconButton(PackIconKind.DotsVertical,"更多视频操作",32);more.Height=32;more.Foreground=Muted;AddLaterMenu(more,detail!.Video);
+        var menu=more.ContextMenu!;menu.Style=(Style)FindResource("CompactActionMenu");menu.PlacementTarget=more;menu.Placement=PlacementMode.Custom;
+        // Explicit target-relative placement avoids Windows' menu alignment offset.
+        menu.CustomPopupPlacementCallback=(popup,target,_)=>
+        [
+            new(new Point(target.Width-popup.Width,target.Height+6),PopupPrimaryAxis.Horizontal),
+            new(new Point(target.Width-popup.Width,-popup.Height-6),PopupPrimaryAxis.Horizontal)
+        ];
+        more.Click+=(_,e)=>{e.Handled=true;menu.IsOpen=true;};
+        var actionBar=new Grid{Margin=new Thickness(0,0,0,4)};
+        actionBar.RowDefinitions.Add(new(){Height=GridLength.Auto});actionBar.RowDefinitions.Add(new(){Height=GridLength.Auto});
+        actionBar.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});actionBar.ColumnDefinitions.Add(new(){Width=GridLength.Auto});
+        actions.HorizontalAlignment=HorizontalAlignment.Left;actionBar.Children.Add(actions);
+        var tools=new DockPanel{VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Right};
+        more.VerticalAlignment=VerticalAlignment.Center;DockPanel.SetDock(more,Dock.Right);tools.Children.Add(more);
+        onlineText.VerticalAlignment=VerticalAlignment.Center;onlineText.TextTrimming=TextTrimming.CharacterEllipsis;onlineText.MaxWidth=220;onlineText.Margin=new(0,0,8,0);tools.Children.Add(onlineText);
+        Grid.SetColumn(tools,1);actionBar.Children.Add(tools);
+        void ArrangeActions(double width)
+        {
+            actions.Width=Math.Min(380,Math.Max(0,width));var stacked=width<660;
+            Grid.SetColumnSpan(actions,stacked?2:1);Grid.SetRow(tools,stacked?1:0);tools.Margin=stacked?new Thickness(0,6,0,0):new Thickness(16,0,0,0);
+        }
+        ArrangeActions(380);actionBar.SizeChanged+=(_,e)=>ArrangeActions(e.NewSize.Width);body.Children.Add(actionBar);
         if(!string.IsNullOrWhiteSpace(detail!.Description))
         {
             var fullDescription=detail.Description;var description=Text(fullDescription,14);description.TextWrapping=TextWrapping.Wrap;description.Margin=new Thickness(12,10,12,14);description.Foreground=Ink;
@@ -112,7 +133,7 @@ public sealed partial class MainWindow
     }
     private async Task RefreshWatchMetadata(VideoPart videoPart,CancellationToken ct)
     {
-        async Task Heat(){try{var map=await api.GetVideoHeatmap(detail!.Video.Bvid,detail.Video.Aid,videoPart.Cid,ct);if(!ct.IsCancellationRequested&&part?.Cid==videoPart.Cid)(seek as PlaybackTimeline)?.SetHeatmap(map);}catch(OperationCanceledException){}catch(Exception e){Debug.WriteLine("Heatmap: "+e.Message);}}
+        async Task Heat(){try{var map=await api.GetVideoHeatmap(detail!.Video.Bvid,detail.Video.Aid,videoPart.Cid,ct);if(!ct.IsCancellationRequested&&part?.Cid==videoPart.Cid)seek?.SetHeatmap(map);}catch(OperationCanceledException){}catch(Exception e){Debug.WriteLine("Heatmap: "+e.Message);}}
         async Task Online(){try{while(!ct.IsCancellationRequested&&part?.Cid==videoPart.Cid){var count=await api.GetOnlineViewers(detail!.Video.Bvid,videoPart.Cid,ct);if(!ct.IsCancellationRequested&&part?.Cid==videoPart.Cid&&onlineText!=null)onlineText.Text=count.Show?$"{count.Count} 人正在看":"观看人数暂不可用";await Task.Delay(TimeSpan.FromSeconds(30),ct);}}catch(OperationCanceledException){}catch(Exception e){if(!ct.IsCancellationRequested&&onlineText!=null)onlineText.Text="观看人数暂不可用";Debug.WriteLine(e.Message);}}
         await Task.WhenAll(Heat(),Online());
     }

@@ -8,6 +8,7 @@ public sealed partial class MainWindow
     private void OnPlayerStateChanged(MpvHost host,string name)
     {
         if(host!=player)return;
+        if(name=="seeking"){overlay?.Danmaku.Wake();return;}
         var paused=host.Text("pause")=="yes"||host.Text("paused-for-cache")=="yes";
         if(name is "pause" or "paused-for-cache")
         {
@@ -18,7 +19,7 @@ public sealed partial class MainWindow
     }
     private void ReleasePageReferences()
     {
-        timer.Stop();lastPlaybackTick=0;dragging=false;reloadPlayback=false;
+        timer.Stop();lastPlaybackTick=0;seek?.CancelScrub();
         // A retiring HwndHost can briefly outlive WPF navigation. Detach it so
         // its native lifetime cannot keep the rest of the page's visual tree.
         if(playerFrame!=null)playerFrame.Child=null;
@@ -52,7 +53,7 @@ public sealed partial class MainWindow
     }
     private async Task CloseApplicationAsync()
     {
-        if(closingStarted)return;closingStarted=true;
+        if(closingStarted)return;closingStarted=true;CancelCollectionOpen();CancelStreamOpen();
         watchLaterWindow?.Close();StopCardPreview();storyboardPreview?.Dispose();storyboardPreview=null;playerFeaturesSession?.Cancel();playerFeaturesSession?.Dispose();playerFeaturesSession=null;SaveProgress();timer.Stop();navigation.Cancel();EndDanmakuSession();overlay?.Dispose();overlay=null;player?.Dispose();player=null;
         try{await laterHistoryFlush;await local.FlushProgressAsync();await FlushCloudHistory();await MpvHost.DrainShutdownsAsync();}
         catch(Exception error){closingStarted=false;Notify(error.Message);return;}

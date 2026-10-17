@@ -31,7 +31,9 @@ VideoDesk 原创代码采用 [MIT](LICENSE)。第三方组件与素材保留各�
 
 ## 参考资料
 
+- [.NET WPF Slider 输入事件](https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Slider.cs)：`main`，2026-10-17 对照，MIT，.NET Foundation 及贡献者；用于确认移动到点击位置时的已处理事件与鼠标捕获行为，未复制其实现代码。
 - [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus)、[PiliPala](https://github.com/guozhigq/pilipala)：GPLv3，作为交互及接口行为参考；未纳入其 Dart / Flutter 源码。
+- [mpv EDL 协议](https://github.com/mpv-player/mpv/blob/v0.41.0/DOCS/edl-mpv.rst)：分离音视频使用官方 `new_stream` 与 UTF-8 字节长度转义协议，相关 C# 代码独立实现。
 - [bilibili-API-collect](https://github.com/rinnein/bilibili-API-collect)：CC BY-NC 4.0，SocialSisterYi 及贡献者；参考接口地址、参数与协议字段，未纳入文档正文或示例程序。
 
 分发二进制时，保留各依赖随附的版权声明、许可文本和播放器对应源码。第三方许可不因本项目采用 MIT 而改变。

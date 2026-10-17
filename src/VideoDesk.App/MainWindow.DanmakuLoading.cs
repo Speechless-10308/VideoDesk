@@ -25,7 +25,6 @@ public sealed partial class MainWindow
     }
     private void EndDanmakuSession()
     {
-        pendingCommentSeek=null;
         danmakuWindowCancellation?.Cancel();danmakuWindowCancellation?.Dispose();danmakuWindowCancellation=null;
         danmakuSessionCancellation?.Cancel();danmakuSessionCancellation?.Dispose();danmakuSessionCancellation=null;
         danmakuSegments=null;danmakuMessages=[];danmakuSessionReady=false;requestedDanmakuSegment=0;danmakuRetryAfter=DateTime.MinValue;

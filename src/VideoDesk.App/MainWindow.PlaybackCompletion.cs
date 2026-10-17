@@ -16,7 +16,7 @@ public sealed partial class MainWindow
         {
             try
             {
-                if(ct.IsCancellationRequested||!ReferenceEquals(player,host)||host.LoadRevision!=revision||detail?.Video.Bvid!=bvid||part?.Cid!=cid)return;
+                if(ct.IsCancellationRequested||collectionOpen!=null||streamOpen!=null||!ReferenceEquals(player,host)||host.LoadRevision!=revision||!host.CompletionPending||detail?.Video.Bvid!=bvid||part?.Cid!=cid)return;
                 await Run(()=>AdvanceCompletedPlayback(ct));
             }
             finally{if(queuedCompletion==(host,revision))queuedCompletion=null;}

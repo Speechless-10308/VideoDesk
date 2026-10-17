@@ -20,7 +20,7 @@ public sealed partial class MainWindow
     private void ResetStoryboardPreview()
     {
         storyboardPreview?.Dispose();storyboardPreview=null;
-        if(seek is PlaybackTimeline timeline&&overlay!=null&&detail!=null&&part!=null)storyboardPreview=new(timeline,overlay,api,images,detail.Video.Bvid,part.Cid);
+        if(seek is {} timeline&&overlay!=null&&detail!=null&&part!=null)storyboardPreview=new(timeline,overlay,api,images,detail.Video.Bvid,part.Cid);
         ResetPlayerFeatures();
     }
     private Button? qualityButton,speedButton;
@@ -39,15 +39,19 @@ public sealed partial class MainWindow
     private bool closingApproved;
     private bool closingStarted;
     private Button? openingVideoBack;
-    private SectionLoadState? openingVideoFeedback;
+    private PlayerLoadingView? openingVideoFeedback;
     private async Task OpenVideo(string bvid,double? startOverride=null,bool firstPart=false,bool rememberPage=true,long? preferredCid=null)
     {
+        if(player?.Ready==true&&playerPage!=null&&playbackCollection?.Videos.Any(video=>video.Bvid==bvid)==true)
+        {
+            await OpenCollectionVideo(bvid,startOverride,firstPart,rememberPage,preferredCid);return;
+        }
         watchLaterWindow?.SuspendPlayback();var supplied=creatorScroll?.Visibility==Visibility.Visible&&content.Children.Contains(creatorScroll)&&creatorState?.Collection is {} selected?new VideoCollectionContext(selected.Id,creatorState.Profile.Mid,selected.Title,creatorState.Videos.ToArray(),creatorState.Total,selected.Series):playbackCollection?.Videos.Any(a=>a.Bvid==bvid)==true?playbackCollection:null;
         var sourceCollectionPage=creatorState?.Collection!=null&&creatorScroll?.Visibility==Visibility.Visible?creatorState.Page:supplied!=null?collectionPage:1;
         var ct=BeginPage(rememberPage);
         var opening=new Grid();opening.RowDefinitions.Add(new(){Height=GridLength.Auto});opening.RowDefinitions.Add(new(){Height=new(1,GridUnitType.Star)});
         var back=BackButton();back.HorizontalAlignment=HorizontalAlignment.Left;back.Margin=new(0,0,0,16);back.Click+=async(_,_)=>await Run(GoBack);openingVideoBack=back;opening.Children.Add(back);
-        var feedback=new SectionLoadState(Brushes.White,Brushes.LightGray,Brushes.Transparent,Pink){HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,MaxWidth=500};openingVideoFeedback=feedback;
+        var feedback=new PlayerLoadingView();openingVideoFeedback=feedback;
         var stage=new Border{Background=Brushes.Black,CornerRadius=new(8),Child=feedback};Grid.SetRow(stage,1);opening.Children.Add(stage);content.Children.Add(opening);
         try
         {
@@ -55,8 +59,16 @@ public sealed partial class MainWindow
         part=detail.Parts.FirstOrDefault()??throw new InvalidDataException("这个视频没有可播放分集");
         if(preferredCid is {} wanted)part=detail.Parts.FirstOrDefault(p=>p.Cid==wanted)??part;var progress=local.GetProgress(bvid);if(progress!=null&&!firstPart)part=detail.Parts.FirstOrDefault(p=>p.Cid==progress.Cid)??part;
         await MpvHost.WaitForShutdownCapacityAsync(ct);ct.ThrowIfCancellationRequested();content.Children.Remove(opening);BuildPlayer();FocusManager.SetFocusedElement(this,playerFrame);Keyboard.Focus(playerFrame);searchPopup.IsOpen=false;var start=progress!=null&&progress.Cid==part.Cid&&progress.Position<progress.Duration-10?progress.Position:0;if(startOverride.HasValue)start=startOverride.Value;
-        var openingPart=part;StartDanmakuSession(openingPart,ct);var first=FirstDanmaku(openingPart,start,ct);var stream=await api.GetPlayStream(bvid,part.Cid,preferences.DefaultQuality,ct:ct);ct.ThrowIfCancellationRequested();PopulateQualities(stream);var prepared=false;var openingWatch=Stopwatch.StartNew();try{var initial=await first.WaitAsync(TimeSpan.FromSeconds(1.2),ct);await InstallInitialDanmaku(initial,start,ct);prepared=true;}catch(TimeoutException){}initialDanmakuSeconds=openingWatch.Elapsed.TotalSeconds;player!.Load(stream,start);
-        _=LoadRelatedBoth(bvid,ct);_=LoadAccountActions(bvid,fetched.Video.Aid,fetched.Video.Mid,ct);_=LoadDanmaku(openingPart,ct,first,prepared,(int)(start/360)+1);_=RefreshWatchMetadata(openingPart,ct);_=LoadVideoTags(bvid,fetched.Video.Aid,ct);
+        var host=player!;host.PrepareLoad(start);var openingPart=part;var revision=host.LoadRevision;
+        StartDanmakuSession(openingPart,ct);var first=FirstDanmaku(openingPart,start,ct);
+        try
+        {
+            var stream=await api.GetPlayStream(bvid,openingPart.Cid,preferences.DefaultQuality,ct:ct);ct.ThrowIfCancellationRequested();
+            if(!ReferenceEquals(player,host)||host.LoadRevision!=revision||part?.Cid!=openingPart.Cid)return;
+            PopulateQualities(stream);host.Load(stream,start);
+        }
+        catch(Exception) when(ct.IsCancellationRequested||!ReferenceEquals(player,host)||host.LoadRevision!=revision||streamOpen!=null){return;}
+        _=LoadRelatedBoth(bvid,ct);_=LoadAccountActions(bvid,fetched.Video.Aid,fetched.Video.Mid,ct);_=LoadDanmaku(openingPart,ct,first,firstIndex:(int)(start/360)+1);_=RefreshWatchMetadata(openingPart,ct);_=LoadVideoTags(bvid,fetched.Video.Aid,ct);
         }
         catch(OperationCanceledException) when(ct.IsCancellationRequested){}
         catch(Exception error)
@@ -71,9 +83,9 @@ public sealed partial class MainWindow
     {
         SetPageSurface(playback:true);playerPage=new Grid();playerPage.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});playerPage.ColumnDefinitions.Add(new(){Width=new GridLength(400)});var activePage=playerPage;activePage.SizeChanged+=(_,e)=>{if(!fullscreen&&ReferenceEquals(activePage,playerPage))activePage.ColumnDefinitions[1].Width=new GridLength(Math.Clamp(e.NewSize.Width*.3,300,400));};
         leftPlayer=new Grid{Margin=new Thickness(0,0,14,0),Background=CanvasBrush,VerticalAlignment=VerticalAlignment.Stretch};for(int i=0;i<3;i++)leftPlayer.RowDefinitions.Add(new(){Height=i==2?new GridLength(1,GridUnitType.Star):GridLength.Auto});playerPage.Children.Add(leftPlayer);
-        RoundClip(leftPlayer,24);var titlePanel=new StackPanel{Margin=new Thickness(28,18,16,16)};var titleRow=new DockPanel();var back=BackButton();back.Margin=new Thickness(0,0,8,0);back.VerticalAlignment=VerticalAlignment.Top;back.Click+=async(_,_)=>await Run(GoBack);DockPanel.SetDock(back,Dock.Left);titleRow.Children.Add(back);var title=Text(detail!.Video.Title,23,FontWeights.SemiBold);title.TextWrapping=TextWrapping.Wrap;title.MaxHeight=64;title.TextTrimming=TextTrimming.CharacterEllipsis;title.ToolTip=detail.Video.Title;titleRow.Children.Add(SelectableText(title,"视频标题"));titlePanel.Children.Add(titleRow);
-        var stats=Text($"▷ {BilibiliClient.CountLabel(detail.Video.Views)}    ▤ {BilibiliClient.CountLabel(detail.Video.Danmaku)}    {detail.Video.Published}",13);stats.Foreground=Muted;stats.Margin=new Thickness(48,7,0,0);titlePanel.Children.Add(stats);playerTitle=titlePanel;leftPlayer.Children.Add(titlePanel);
-        player=new MpvHost(preferences.HardwareDecoding);player.PlaybackFailed+=Notify;player.FileLoaded+=ApplyPendingCommentSeek;var host=player;host.PlaybackEnded+=revision=>QueuePlaybackCompletion(host,revision);
+        RoundClip(leftPlayer,24);var titlePanel=new StackPanel{Margin=new Thickness(28,18,16,16)};playerTitle=titlePanel;RefreshPlayerTitle();leftPlayer.Children.Add(titlePanel);
+        player=new MpvHost(preferences.HardwareDecoding);var host=player;host.PlaybackFailed+=message=>{if(host.Presentation!=PlayerPresentation.Failed)Notify(message);};host.FileLoaded+=()=>{if(player==host){timer.Start();PollPlayer(false);}};host.PlaybackEnded+=revision=>QueuePlaybackCompletion(host,revision);
+        host.PresentationChanged+=()=>UpdatePlayerPresentation(host);
         timer.Start();host.StateChanged+=name=>OnPlayerStateChanged(host,name);
         var frame=new Grid{Background=Brushes.Black};frame.Children.Add(player);playerFrame=new Border{Margin=new Thickness(16,0,16,0),Child=frame,Background=Brushes.Black,CornerRadius=new CornerRadius(10),ClipToBounds=true,Focusable=true};InputMethod.SetIsInputMethodEnabled(playerFrame,false);Grid.SetRow(playerFrame,1);leftPlayer.Children.Add(playerFrame);
         var layoutLeft=leftPlayer;var nativeFrame=playerFrame;var titleArea=playerTitle;
@@ -81,11 +93,11 @@ public sealed partial class MainWindow
         var playerControls=BuildControls();playerFrame.Loaded+=(_,_)=>
         {
             if(player!=host||!nativeFrame.IsLoaded||detail==null||part==null)return;
-            overlay?.Dispose();var renderer=new DanmakuSurface(()=>player?.Ready==true&&player.Number("video-params/w")>0?(player.Number("time-pos"),player.Text("pause")=="yes"||player.Text("paused-for-cache")=="yes",player.Number("speed")):(0,true,1),preferences.Danmaku);
+            overlay?.Dispose();var renderer=new DanmakuSurface(()=>host.Ready&&host.Number("video-params/w")>0?(host.Number("time-pos"),host.Text("pause")=="yes"||host.Text("paused-for-cache")=="yes",host.Number("speed")):(0,true,1),preferences.Danmaku,()=>!host.CanInteract||host.Seeking);
             renderer.MeasureFrames=App.Diagnostics.Enabled;
             overlay=new(this,playerFrame,playerControls,TogglePause,forward=>player?.Command("seek",forward?"10":"-10","relative+exact"),e=>HandleKey(this,e),renderer,
                 async(item,liked)=>{if(!RequireLogin())throw new InvalidOperationException("请先登录");await api.LikeDanmaku(part!.Cid,item.Id,liked);},ReportHoveredDanmaku,item=>api.GetDanmakuLikeState(part!.Cid,item.Id,navigation.Token));
-            overlay.ConfigureWindowDrag(()=>fullscreen,ToggleFullscreen);ResetStoryboardPreview();
+            overlay.ConfigureWindowDrag(()=>fullscreen,ToggleFullscreen);UpdatePlayerPresentation(host);ResetStoryboardPreview();
             renderer.Mask=new(api,navigation.Token);maskCid=part!.Cid;_ = renderer.Mask.Initialize(detail!.Video.Aid,part.Cid);renderer.SetMessages(danmakuMessages);renderer.SettingsChanged();renderer.SetEnabled(danmakuEnabled);FocusManager.SetFocusedElement(this,playerFrame);Keyboard.Focus(playerFrame);
         };
         danmakuRow=new Border{Height=0};Grid.SetRow(danmakuRow,2);leftPlayer.Children.Add(danmakuRow);
@@ -93,7 +105,7 @@ public sealed partial class MainWindow
         videoTabButton=video;videoCommentTabButton=comments;video.Click+=async(_,_)=>await SelectVideoComments(false);
         comments.Click+=async(_,_)=>await Run(()=>SelectVideoComments(true));switcher.Children.Add(video);Grid.SetColumn(comments,1);switcher.Children.Add(comments);DockPanel.SetDock(switcher,Dock.Top);sideLayout.Children.Add(switcher);
         commentComposer=BuildCommentComposer();commentComposer.Visibility=Visibility.Collapsed;DockPanel.SetDock(commentComposer,Dock.Bottom);sideLayout.Children.Add(commentComposer);
-        var sideContent=new Grid();videoSidebar=new();commentSidebar=new();videoScroll=new SmoothScrollViewer{Content=videoSidebar,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};commentScroll=new SmoothScrollViewer{Content=commentSidebar,ShowBackToTop=false,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};commentHeader=new Border{Margin=new Thickness(0,0,8,18)};commentView=new DockPanel{Visibility=Visibility.Collapsed};DockPanel.SetDock(commentHeader,Dock.Top);commentView.Children.Add(commentHeader);commentView.Children.Add(commentScroll);sideContent.Children.Add(videoScroll);sideContent.Children.Add(commentView);sideLayout.Children.Add(sideContent);var sideFrame=new Border{Child=sideLayout,Background=CanvasBrush,CornerRadius=new CornerRadius(24)};side=sideFrame;Grid.SetColumn(sideFrame,1);playerPage.Children.Add(sideFrame);content.Children.Add(playerPage);BuildVideoSidebar();
+        var sideContent=new Grid();videoSidebar=new();commentSidebar=new();videoScroll=new SmoothScrollViewer{Content=videoSidebar,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};commentScroll=new SmoothScrollViewer{Content=commentSidebar,ShowBackToTop=false,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};commentHeader=new Border{Margin=new Thickness(0,0,8,18)};commentView=new DockPanel{Visibility=Visibility.Collapsed};commentView.Children.Add(commentHeader);DockPanel.SetDock(commentHeader,Dock.Top);commentView.Children.Add(commentScroll);sideContent.Children.Add(videoScroll);sideContent.Children.Add(commentView);sideLayout.Children.Add(sideContent);var sideFrame=new Border{Child=sideLayout,Background=CanvasBrush,CornerRadius=new CornerRadius(24)};side=sideFrame;Grid.SetColumn(sideFrame,1);playerPage.Children.Add(sideFrame);content.Children.Add(playerPage);BuildVideoSidebar();
     }
     private async Task SelectVideoComments(bool selected)
     {
@@ -103,9 +115,13 @@ public sealed partial class MainWindow
     private FrameworkElement BuildControls()
     {
         var panel=new DockPanel{LastChildFill=true,Margin=new Thickness(12,12,12,10)};
-        seek=new PlaybackTimeline{Minimum=0,Maximum=part!.Duration,Height=40,Foreground=Pink,IsMoveToPointEnabled=true};AutomationProperties.SetName(seek,"播放进度");DockPanel.SetDock(seek,Dock.Top);panel.Children.Add(seek);
-        seek.PreviewMouseLeftButtonDown+=(_,_)=>dragging=true;seek.PreviewMouseLeftButtonUp+=(_,_)=>{player?.Command("seek",seek.Value.ToString(CultureInfo.InvariantCulture),"absolute+exact");dragging=false;};seek.LostMouseCapture+=(_,_)=>{if(dragging){player?.Command("seek",seek.Value.ToString(CultureInfo.InvariantCulture),"absolute+exact");dragging=false;}};
-        seek.KeyUp+=(_,_)=>player?.Command("seek",seek.Value.ToString(CultureInfo.InvariantCulture),"absolute+exact");
+        var timeline=new PlaybackTimeline{Minimum=0,Maximum=part!.Duration,Height=40,Foreground=Pink};seek=timeline;
+        var host=player;AutomationProperties.SetName(timeline,"播放进度");DockPanel.SetDock(timeline,Dock.Top);panel.Children.Add(timeline);
+        timeline.SeekRequested+=position=>
+        {
+            if(!ReferenceEquals(player,host)||!ReferenceEquals(seek,timeline))return;
+            host?.Command("seek",position.ToString(CultureInfo.InvariantCulture),"absolute+exact");
+        };
         var row=new Grid{Height=36};foreach(var width in new[]{new GridLength(32),GridLength.Auto,GridLength.Auto,new GridLength(1,GridUnitType.Star),GridLength.Auto,GridLength.Auto,new GridLength(46),new GridLength(32)})row.ColumnDefinitions.Add(new(){Width=width});
         void Place(FrameworkElement control,int column){control.VerticalAlignment=VerticalAlignment.Center;if(control is Button button){button.Height=32;button.FontSize=13;}Grid.SetColumn(control,column);row.Children.Add(control);}
         pause=IconButton(PackIconKind.Pause,"播放或暂停",32);pause.Foreground=Brushes.White;pause.Click+=(_,_)=>TogglePause();Place(pause,0);
@@ -131,7 +147,21 @@ public sealed partial class MainWindow
     private void PopulateQualities(PlayStream stream){quality!.ItemsSource=stream.Qualities;quality.SelectedItem=stream.Qualities.FirstOrDefault(q=>q.Id==stream.Quality);if(qualityButton!=null)qualityButton.Content=stream.Qualities.FirstOrDefault(q=>q.Id==stream.Quality)?.Label??"清晰度";}
     private async Task ChangePart(VideoPart p,double start=0)
     {
-        SaveProgress();part=p;ResetStoryboardPreview();RefreshPartSelection();var ct=navigation.Token;StartDanmakuSession(p,ct);ct=danmakuSessionCancellation!.Token;overlay?.Danmaku.SetMessages([]);(seek as PlaybackTimeline)?.SetHeatmap(null);(seek as PlaybackTimeline)?.SetBuffered([]);var first=FirstDanmaku(p,start,ct);var stream=await api.GetPlayStream(detail!.Video.Bvid,p.Cid,preferences.DefaultQuality,ct:ct);ct.ThrowIfCancellationRequested();if(part?.Cid!=p.Cid)return;PopulateQualities(stream);var prepared=false;try{await InstallInitialDanmaku(await first.WaitAsync(TimeSpan.FromSeconds(1.2),ct),start,ct);prepared=true;}catch(TimeoutException){}if(part?.Cid!=p.Cid)return;player!.Load(stream,start);seek!.Maximum=p.Duration;_=LoadDanmaku(p,ct,first,prepared,(int)(start/360)+1);_=RefreshWatchMetadata(p,ct);
+        if(player is not {} host||detail==null||part==null||!detail.Parts.Any(item=>item.Cid==p.Cid))return;
+        CancelCollectionOpen();var token=navigation.Token;var request=BeginStreamOpen(token);var ct=request.Token;
+        var bvid=detail.Video.Bvid;var revision=host.LoadRevision;
+        try
+        {
+            var stream=await api.GetPlayStream(bvid,p.Cid,preferences.DefaultQuality,ct:ct);ct.ThrowIfCancellationRequested();
+            if(collectionOpen!=null||!ReferenceEquals(player,host)||host.LoadRevision!=revision||detail?.Video.Bvid!=bvid)return;
+            SaveProgress();host.PrepareLoad(start);part=p;lastPlaybackTick=0;
+            ResetStoryboardPreview();RefreshPartSelection();StartDanmakuSession(p,token);overlay?.Danmaku.SetMessages([]);
+            seek?.SetHeatmap(null);seek?.SetBuffered([]);seek!.Maximum=Math.Max(1,p.Duration);seek.Value=start;
+            PopulateQualities(stream);host.Load(stream,start);timer.Start();
+            var first=FirstDanmaku(p,start,token);_=LoadDanmaku(p,token,first,firstIndex:(int)(start/360)+1);_=RefreshWatchMetadata(p,token);
+        }
+        catch(OperationCanceledException) when(ct.IsCancellationRequested){}
+        finally{EndStreamOpen(request);}
     }
     private async Task LoadDanmaku(VideoPart videoPart,CancellationToken ct,Task<IReadOnlyList<DanmakuItem>>? first=null,bool installed=false,int firstIndex=1)
     {
@@ -163,7 +193,7 @@ public sealed partial class MainWindow
     }
     private void SaveProgress()
     {
-        if(player?.Ready!=true||detail==null||part==null)return;var pos=player.Number("time-pos");if(pos<=0)return;var video=detail.Video;
+        if(player?.MediaReady!=true||detail==null||part==null)return;var pos=player.Number("time-pos");if(pos<=0)return;var video=detail.Video;
         lastWatched=new(video.Bvid,part.Cid,pos,Math.Max(part.Duration,player.Number("duration")),DateTimeOffset.UtcNow,video.Title,video.Cover,video.Creator,video.Published,false,video.Aid,video.Mid,video.Level);local.SaveProgress(lastWatched);
         if(account?.LoggedIn==true&&!reportingHistory&&DateTimeOffset.UtcNow-lastCloudReport>TimeSpan.FromSeconds(30))
         {

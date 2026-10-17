@@ -19,7 +19,7 @@ public sealed partial class MainWindow
     private void AttachCardPreview(Button tile,Grid cover,VideoCard video)
     {
         ToolTipService.SetIsEnabled(tile,false);
-        var later=LaterButton(video,compact:true);later.HorizontalAlignment=HorizontalAlignment.Right;later.VerticalAlignment=VerticalAlignment.Top;later.Margin=new(6);later.Visibility=Visibility.Collapsed;cover.Children.Add(later);
+        var later=LaterButton(video);later.HorizontalAlignment=HorizontalAlignment.Right;later.VerticalAlignment=VerticalAlignment.Top;later.Margin=new(6);later.Visibility=Visibility.Collapsed;cover.Children.Add(later);
         tile.MouseEnter+=(_,_)=>{later.Visibility=Visibility.Visible;};tile.MouseLeave+=(_,_)=>{if(!tile.IsKeyboardFocusWithin)later.Visibility=Visibility.Collapsed;};
         tile.GotKeyboardFocus+=(_,_)=>later.Visibility=Visibility.Visible;tile.LostKeyboardFocus+=(_,_)=>{if(!tile.IsMouseOver)later.Visibility=Visibility.Collapsed;};
         cover.MouseEnter+=async(_,_)=>await StartCardPreview(tile,cover,video);
@@ -37,7 +37,7 @@ public sealed partial class MainWindow
                 var data=await api.GetDetail(video.Bvid,ct);var part=data.Parts.FirstOrDefault();if(part==null)return;
                 var stream=await api.GetPlayStream(video.Bvid,part.Cid,16,ct);await MpvHost.WaitForShutdownCapacityAsync(ct);ct.ThrowIfCancellationRequested();
                 if(!PreviewContainsPointer(cover)||!IsActive||MouseBusy())return;
-                cardPreview=new(this,cover,preferences.HardwareDecoding,preferences.Danmaku,LaterButton(video,compact:true),()=>_ = Run(()=>OpenVideo(video.Bvid)),()=>{if(cardPreviewAnchor==cover)StopCardPreview();},()=>PreviewContainsPointer(cover));
+                cardPreview=new(this,cover,preferences.HardwareDecoding,preferences.Danmaku,LaterButton(video),()=>_ = Run(()=>OpenVideo(video.Bvid)),()=>{if(cardPreviewAnchor==cover)StopCardPreview();},()=>PreviewContainsPointer(cover));
 
                 cardPreview.Load(stream);_=LoadPreviewDanmaku(cardPreview,part.Cid,ct);
             }

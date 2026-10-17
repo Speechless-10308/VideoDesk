@@ -73,6 +73,29 @@
           <ControlTemplate.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger></ControlTemplate.Triggers>
         </ControlTemplate></Setter.Value></Setter>
       </Style>
+      <Style x:Key="CompactActionMenuItem" TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{DynamicResource Ink}" /><Setter Property="Height" Value="36" /><Setter Property="Padding" Value="12,7" /><Setter Property="Background" Value="Transparent" /><Setter Property="Cursor" Value="Hand" /><Setter Property="FocusVisualStyle" Value="{DynamicResource KeyboardButtonFocus}" />
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="MenuItem">
+          <Border x:Name="ItemSurface" Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}" Margin="0,1">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition /></Grid.ColumnDefinitions>
+              <ContentPresenter ContentSource="Icon" VerticalAlignment="Center" HorizontalAlignment="Left" />
+              <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource UiSelected}" /><Setter Property="Foreground" Value="#FF478C" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="CompactActionMenu" TargetType="ContextMenu">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" /><Setter Property="FontSize" Value="13" /><Setter Property="Background" Value="{DynamicResource UiCanvas}" /><Setter Property="BorderBrush" Value="{DynamicResource UiOutline}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="4" /><Setter Property="Width" Value="220" /><Setter Property="HasDropShadow" Value="False" /><Setter Property="UseLayoutRounding" Value="True" /><Setter Property="SnapsToDevicePixels" Value="True" /><Setter Property="TextOptions.TextFormattingMode" Value="Display" /><Setter Property="ItemContainerStyle" Value="{StaticResource CompactActionMenuItem}" />
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContextMenu">
+          <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12" Padding="{TemplateBinding Padding}">
+            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+          </Border>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
       <Style x:Key="KeyboardButtonFocus" TargetType="Control">
         <Setter Property="Template"><Setter.Value><ControlTemplate>
           <Rectangle Margin="2" RadiusX="6" RadiusY="6" Stroke="{StaticResource Accent}" StrokeThickness="1" StrokeDashArray="2 2" SnapsToDevicePixels="True" IsHitTestVisible="False" />

@@ -17,6 +17,8 @@ internal sealed class PlayerOverlay : Window,IDisposable
     private readonly FrameworkElement anchor,controls;
     private readonly DispatcherTimer idle=new(DispatcherPriority.Normal){Interval=TimeSpan.FromMilliseconds(100)};
     private readonly Grid surface;
+    private readonly PlayerLoadingView loadingView=new();
+    private bool playbackBlocked;
     private readonly Border timelinePreview=new(){Width=160,Background=new SolidColorBrush(Color.FromArgb(240,20,20,23)),CornerRadius=new(5),Visibility=Visibility.Collapsed,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top,IsHitTestVisible=false,ClipToBounds=true};
     private readonly Image timelineImage=new(){Width=160,Height=90,Stretch=Stretch.UniformToFill};
     private readonly TextBlock timelineTime=new(){Foreground=Brushes.White,Background=new SolidColorBrush(Color.FromArgb(195,0,0,0)),FontSize=12,FontWeight=FontWeights.SemiBold,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Bottom,Padding=new(4,1,4,1)};
@@ -52,6 +54,7 @@ internal sealed class PlayerOverlay : Window,IDisposable
         surface=new Grid{Background=new SolidColorBrush(Color.FromArgb(1,0,0,0)),Focusable=true};InputMethod.SetIsInputMethodEnabled(surface,false);controls.VerticalAlignment=VerticalAlignment.Bottom;surface.Children.Add(danmaku);surface.Children.Add(feedback);feedback.Child=feedbackText;surface.Children.Add(controls);Content=surface;
         surface.Children.Add(hoverCard);
         surface.Children.Add(Interactions);Panel.SetZIndex(Interactions,2);Panel.SetZIndex(controls,3);Panel.SetZIndex(hoverCard,4);
+        Panel.SetZIndex(loadingView,90);surface.Children.Add(loadingView);loadingView.Clear();
         var previewContent=new StackPanel();var previewPicture=new Grid();previewPicture.Children.Add(timelineImage);previewPicture.Children.Add(timelineTime);previewContent.Children.Add(previewPicture);previewContent.Children.Add(timelineChapter);timelinePreview.Child=previewContent;Panel.SetZIndex(timelinePreview,5);surface.Children.Add(timelinePreview);
         surface.MouseMove+=(_,e)=>{var p=surface.PointToScreen(e.GetPosition(surface));if(Math.Abs(p.X-lastPoint.X)+Math.Abs(p.Y-lastPoint.Y)>1){lastPoint=p;Wake();}if(menuPanel!=null||!allowDanmakuActions||Interactions.IsMouseOver)return;if(!HoverOpen&&!controls.IsMouseOver){Danmaku.HoverAt(e.GetPosition(Danmaku));if(Danmaku.Hovered is {} item)ShowHover(item);}else if(!HoverOpen)Danmaku.ClearHover();};
         surface.MouseLeave+=(_,_)=>{lastMotion=DateTime.UtcNow.AddSeconds(-2);if(!HoverOpen)Danmaku.ClearHover();};
@@ -59,17 +62,27 @@ internal sealed class PlayerOverlay : Window,IDisposable
         {
             if(windowGrip?.IsMouseOver==true||Interactions.IsMouseOver)return;
             for(DependencyObject? node=e.OriginalSource as DependencyObject;node!=null;node=node is Visual?VisualTreeHelper.GetParent(node):LogicalTreeHelper.GetParent(node))if(node is ButtonBase or Slider or TextBox or MenuItem)return;
-            if(MenuOpen)return;e.Handled=true;FocusManager.SetFocusedElement(owner,anchor);Keyboard.Focus(surface);ActivateSurface(e.ClickCount,e.GetPosition(surface).X);
+            if(playbackBlocked){e.Handled=true;return;}if(MenuOpen)return;e.Handled=true;FocusManager.SetFocusedElement(owner,anchor);Keyboard.Focus(surface);ActivateSurface(e.ClickCount,e.GetPosition(surface).X);
         };
-        PreviewKeyDown+=(_,e)=>{Wake();if(e.Key==Key.Escape&&menuPanel!=null){ClosePanel();e.Handled=true;}else key(e);};
+        PreviewKeyDown+=(_,e)=>{Wake();if(playbackBlocked&&e.Key is not (Key.Escape or Key.Tab)){if(!loadingView.IsKeyboardFocusWithin)e.Handled=true;return;}if(e.Key==Key.Escape&&menuPanel!=null){ClosePanel();e.Handled=true;}else key(e);};
         controls.GotKeyboardFocus+=(_,_)=>Wake();controls.LostKeyboardFocus+=(_,_)=>Wake();
         Activated+=(_,_)=>{if(FocusManager.GetFocusedElement(this) is TextBoxBase editor&&controls.IsAncestorOf(editor))Keyboard.Focus(editor);else Keyboard.Focus(surface);Wake();};
         Deactivated+=(_,_)=>_ = Dispatcher.BeginInvoke(()=>{if(!owner.IsActive&&!IsActive)Hide();});
-        idle.Tick+=(_,_)=>{if(HoverOpen&&DateTime.UtcNow-hoverOpened>TimeSpan.FromMilliseconds(300)&&!hoverCard.IsMouseOver&&!Danmaku.IsOverHovered(Mouse.GetPosition(Danmaku)))CloseHover();if(Editing||timelinePreview.Visibility==Visibility.Visible){Wake();return;}if(DateTime.UtcNow-lastMotion<TimeSpan.FromSeconds(2)||Mouse.Captured!=null||MenuOpen)return;controls.Visibility=Visibility.Collapsed;Cursor=Cursors.None;};
+        idle.Tick+=(_,_)=>{if(playbackBlocked){Cursor=Cursors.Arrow;return;}if(HoverOpen&&DateTime.UtcNow-hoverOpened>TimeSpan.FromMilliseconds(300)&&!hoverCard.IsMouseOver&&!Danmaku.IsOverHovered(Mouse.GetPosition(Danmaku)))CloseHover();if(Editing||timelinePreview.Visibility==Visibility.Visible){Wake();return;}if(DateTime.UtcNow-lastMotion<TimeSpan.FromSeconds(2)||Mouse.Captured!=null||MenuOpen)return;controls.Visibility=Visibility.Collapsed;Cursor=Cursors.None;};
         anchor.LayoutUpdated+=OnLayout;owner.IsVisibleChanged+=OnOwnerVisible;owner.StateChanged+=OnOwnerState;owner.Deactivated+=OnOwnerDeactivated;owner.Activated+=OnOwnerActivated;
         IsVisibleChanged+=(_,_)=>{if(IsVisible&&!disposed)idle.Start();else idle.Stop();};Show();Reposition();
     }
-    public void Wake(){lastMotion=DateTime.UtcNow;controls.Visibility=Visibility.Visible;Cursor=Cursors.Arrow;}
+    public void Wake(){lastMotion=DateTime.UtcNow;controls.Visibility=playbackBlocked?Visibility.Collapsed:Visibility.Visible;Cursor=Cursors.Arrow;}
+    public void SetPlaybackPresentation(PlayerPresentation state,string message,string details,Func<Task> retry)
+    {
+        playbackBlocked=state is PlayerPresentation.Loading or PlayerPresentation.Failed;
+        controls.IsEnabled=!playbackBlocked;Danmaku.Visibility=Interactions.Visibility=playbackBlocked?Visibility.Hidden:Visibility.Visible;
+        if(playbackBlocked){ClosePanel();CloseHover();HideTimelinePreview();if(controls.IsKeyboardFocusWithin)Keyboard.Focus(surface);}
+        if(state==PlayerPresentation.Failed)loadingView.Failed(message,details,retry);
+        else if(state is PlayerPresentation.Loading or PlayerPresentation.Buffering)loadingView.Loading(message,buffering:!playbackBlocked);
+        else loadingView.Clear();
+        Wake();
+    }
     public void ConfigureWindowDrag(Func<bool> fullscreen,Action exitFullscreen)
     {
         dragFullscreen=fullscreen;
@@ -85,7 +98,7 @@ internal sealed class PlayerOverlay : Window,IDisposable
         timelinePreview.Margin=new(Math.Clamp(point.X-80,8,Math.Max(8,ActualWidth-168)),Math.Max(8,point.Y-height-13),0,0);timelinePreview.Visibility=Visibility.Visible;
     }
     public void HideTimelinePreview(){timelinePreview.Visibility=Visibility.Collapsed;timelineImage.Source=null;}
-    internal void ActivateSurface(int clickCount,double x){Wake();pause();if(clickCount==2){var forward=x>=ActualWidth/2;seek(forward);ShowFeedback(forward?"前进 10 秒":"后退 10 秒",forward?1:-1);}}
+    internal void ActivateSurface(int clickCount,double x){if(playbackBlocked)return;Wake();pause();if(clickCount==2){var forward=x>=ActualWidth/2;seek(forward);ShowFeedback(forward?"前进 10 秒":"后退 10 秒",forward?1:-1);}}
     public void Suspend(){if(disposed)return;suspended=true;CloseHover();ClosePanel();HideTimelinePreview();Hide();}
     private void CloseHover(){hoverCard.Visibility=Visibility.Collapsed;MenuOpen=menuPanel!=null;Danmaku.ClearHover();}
     public void ShowPanel(FrameworkElement body,FrameworkElement button,Brush background,Brush outline,Action? closed=null)

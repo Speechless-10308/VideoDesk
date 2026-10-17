@@ -45,7 +45,7 @@ public sealed partial class MainWindow
         var merged=await Task.Run(()=>snapshot.GroupBy(p=>p.Bvid).Select(g=>{var newest=g.OrderByDescending(p=>p.WatchedAt).First();var metadata=g.FirstOrDefault(p=>p.Cover.Length>0);return newest with{Cover=metadata?.Cover??newest.Cover,Creator=metadata?.Creator??newest.Creator,Aid=g.Max(v=>v.Aid),Mid=g.FirstOrDefault(v=>v.Mid>0)?.Mid??0,Cloud=g.Any(v=>v.Cloud)};}).OrderByDescending(p=>p.WatchedAt).Where(p=>query.Length==0||p.Title.Contains(query,StringComparison.OrdinalIgnoreCase)||p.Creator.Contains(query,StringComparison.OrdinalIgnoreCase)).ToArray(),ct);
         ct.ThrowIfCancellationRequested();if(version!=historyRenderVersion)return;
         if(historyCards?.Parent!=target)historyCards=new(()=>historyScroll,w=>Math.Clamp((int)(w/270),1,5),item=>HistoryCard(item,target,navigation.Token),item=>HistoryDay(item.WatchedAt.LocalDateTime.Date),HistoryRow,80);
-        historyCards.SetItems(merged);target.Children.Clear();target.Children.Add(historyCards);
+        historyCards.SetItems(merged);if(historyCards.Parent!=target){target.Children.Clear();target.Children.Add(historyCards);}else RemoveSectionState(target);
         if(merged.Length==0){var empty=SectionState(target);empty.Empty(query.Length>0?"没有找到匹配的观看记录":"观看过的视频会显示在这里");empty.Margin=new Thickness(88,30,0,0);}
         historyLocalRendered=local.History.FirstOrDefault()?.WatchedAt??default;
     }

@@ -35,6 +35,7 @@ internal sealed class ViewportListRows<T> : Panel
     internal void SetItems(IEnumerable<T> values)
     {
         var next = values.ToArray();
+        if (items.AsSpan().SequenceEqual(next)) return;
         var previous = items.Select((item, index) => (Key: key(item), Item: item, Height: heights[index])).ToDictionary(p => p.Key);
         foreach (var index in live.Keys.ToArray())
             if (index >= next.Length) DropRow(index);
@@ -60,12 +61,7 @@ internal sealed class ViewportListRows<T> : Panel
     private void Scrolled(object sender, ScrollChangedEventArgs e) { if (ReferenceEquals(e.OriginalSource, scroll)) Queue(); }
     private void DropRow(int index)
     {
-        var child = live[index]; Children.Remove(child); ReleaseImages(child); live.Remove(index);replacements.Remove(index);
-    }
-    private static void ReleaseImages(DependencyObject node)
-    {
-        if (node is Image image) image.Source = null;
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) ReleaseImages(VisualTreeHelper.GetChild(node, i));
+        var child = live[index]; Children.Remove(child); VisualTree.ReleaseImages(child); live.Remove(index);replacements.Remove(index);
     }
     private void Reindex()
     {
@@ -146,10 +142,11 @@ internal sealed class ViewportListRows<T> : Panel
                     foreach (var index in live.Keys.Where(i => i < first || i > last).ToArray()) DropRow(index);
                     for (int index = first; index <= last; index++)
                     {
+                        if (stamp != version || !IsLoaded || !IsVisible) return;
                         if (live.ContainsKey(index)&&!replacements.Contains(index)) continue;
-                        if (stamp != version || !IsVisible) return;
                         var current = Range(); if (index < current.First || index > current.Last) { dirty = true; break; }
                         var child = create(items[index]);
+                        if (stamp != version || !IsLoaded || !IsVisible) { VisualTree.ReleaseImages(child); return; }
                         if(live.ContainsKey(index))DropRow(index);
                         live[index] = child; Children.Add(child); InvalidateMeasure();
                         // One variable-height row may contain text and media. Let

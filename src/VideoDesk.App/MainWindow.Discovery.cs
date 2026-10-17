@@ -35,7 +35,7 @@ public sealed partial class MainWindow
     private sealed class FeedState
     {
         public readonly List<FeedBatch> Batches=[];
-        public int RequestPage;public double Scroll;public bool Loading,Ended,TailFillQueued;public string Offset="";public CancellationToken LoadingToken;public long Total;public DateTime LastUsed=DateTime.UtcNow;
+        public int RequestPage,Columns;public double Scroll;public bool Loading,Ended,TailFillQueued;public string Offset="";public CancellationToken LoadingToken;public long Total;public DateTime LastUsed=DateTime.UtcNow;
         public DockPanel? Layout;public StackPanel? Panel;public ScrollViewer? Viewer;public CancellationToken ViewToken;public bool ViewReady;public double ViewWidth;
     }
     private sealed class FeedBatch(IReadOnlyList<VideoCard> videos,int page,string label="")
@@ -189,7 +189,8 @@ public sealed partial class MainWindow
     }
     private void ResizeFeedCards(FeedState state)
     {
-        state.ViewWidth=content.ActualWidth;ReflowFeedRows(state);foreach(var batch in state.Batches){batch.MeasuredHeight=0;if(batch.Element?.Child is StackPanel stack){foreach(var grid in stack.Children.OfType<UniformGrid>())grid.Columns=CardColumns();batch.Element.Height=double.NaN;}else BatchPlaceholder(batch);}if(feedScroll!=null)QueueFeedTailFill(state,feedScroll,navigation.Token);
+        if(Math.Abs(state.ViewWidth-content.ActualWidth)<1)return;
+        state.ViewWidth=content.ActualWidth;if(state.Columns!=CardColumns())ReflowFeedRows(state);foreach(var batch in state.Batches){batch.MeasuredHeight=0;if(batch.Element?.Child is StackPanel stack){foreach(var grid in stack.Children.OfType<UniformGrid>())grid.Columns=CardColumns();batch.Element.Height=double.NaN;}else BatchPlaceholder(batch);}if(feedScroll!=null)QueueFeedTailFill(state,feedScroll,navigation.Token);
     }
     private async Task RefreshFeed()
     {

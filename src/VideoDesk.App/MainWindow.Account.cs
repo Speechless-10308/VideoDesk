@@ -35,14 +35,14 @@ public sealed partial class MainWindow
     {
         if(videoSidebar==null||detail==null)return;videoSidebar.Children.Clear();var video=detail.Video;
         var up=new DockPanel{Margin=new Thickness(0,2,0,18)};var face=UserAvatar(detail.Avatar,52,mid:video.Mid);face.Margin=new Thickness(0,0,12,0);DockPanel.SetDock(face,Dock.Left);CreatorLink(face,video.Mid);up.Children.Add(face);
-        var follow=Button("");followAction=follow;follow.Width=90;follow.VerticalAlignment=VerticalAlignment.Center;
+        var follow=Button("");followAction=follow;follow.Width=90;follow.Margin=new Thickness(10,0,0,0);follow.VerticalAlignment=VerticalAlignment.Center;
         follow.Click+=async(_,_)=>await Run(async()=>
         {
             if(!RequireLogin())return;
             if(!accountStateReady){await LoadAccountActions(video.Bvid,video.Aid,video.Mid,navigation.Token);return;}
             await AccountAction("关注",async ct=>{var desired=!followingCreator;await SubmitAccountAction("关注",()=>api.SetFollow(video.Mid,desired),()=>followingCreator=desired,ct);});
         });DockPanel.SetDock(follow,Dock.Right);up.Children.Add(follow);
-        var info=new StackPanel{VerticalAlignment=VerticalAlignment.Center};var name=Text(video.Creator,17,FontWeights.SemiBold);name.TextTrimming=TextTrimming.CharacterEllipsis;CreatorLink(name,video.Mid);info.Children.Add(IdentityName(name,mid:video.Mid));var hint=Text("UP 主",12);hint.Foreground=Muted;hint.Margin=new Thickness(0,5,0,0);info.Children.Add(hint);up.Children.Add(info);videoSidebar.Children.Add(CreatorInformation(up,hint,follow));var later=LaterButton(video);later.HorizontalAlignment=HorizontalAlignment.Right;later.Margin=new Thickness(0,0,0,12);videoSidebar.Children.Add(later);
+        var info=new StackPanel{VerticalAlignment=VerticalAlignment.Center};var name=Text(video.Creator,17,FontWeights.SemiBold);name.TextTrimming=TextTrimming.CharacterEllipsis;CreatorLink(name,video.Mid);info.Children.Add(IdentityName(name,mid:video.Mid));var hint=Text("UP 主",12);hint.Foreground=Muted;hint.TextTrimming=TextTrimming.CharacterEllipsis;hint.Margin=new Thickness(0,5,0,0);info.Children.Add(hint);up.Children.Add(info);videoSidebar.Children.Add(CreatorInformation(up,hint,follow));
         var actions=new UniformGrid{Columns=4,Margin=new Thickness(0,0,0,18)};
         var like=Interaction(PackIconKind.ThumbUpOutline,detail.Likes,"点赞");likeAction=like;
         like.Click+=async(_,_)=>await Run(()=>AccountAction("点赞",async ct=>

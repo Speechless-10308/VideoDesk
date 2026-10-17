@@ -5,12 +5,13 @@
     <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>VideoDesk</AssemblyName>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <ApplicationIcon>Assets/AppIcon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../VideoDesk.Core/VideoDesk.Core.csproj" />
+    <InternalsVisibleTo Include="VideoDesk.App.Tests" />
     <PackageReference Include="MaterialDesignThemes" Version="5.3.2" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
   </ItemGroup>

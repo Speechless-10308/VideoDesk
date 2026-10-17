@@ -5,8 +5,6 @@ namespace VideoDesk.App;
 
 public sealed partial class MainWindow
 {
-    private (MpvHost Host,long Cid,double Seconds)? pendingCommentSeek;
-
     private VideoPart? CommentTimePart(CommentTimestamp timestamp)
     {
         if(dynamicDetail!=null||detail==null||part==null)return null;
@@ -24,17 +22,11 @@ public sealed partial class MainWindow
         if(dynamicDetail!=null||part==null||seconds<0||!double.IsFinite(seconds)||seconds>selected.Duration)return;
         if(selected.Cid!=part.Cid){await ChangePart(selected,seconds);return;}
         if(player?.Ready!=true)return;
-        if(player.Number("duration")<=0){pendingCommentSeek=(player,part.Cid,seconds);return;}
         ApplyCommentSeek(seconds);
-    }
-    private void ApplyPendingCommentSeek()
-    {
-        if(pendingCommentSeek is not {} pending)return;pendingCommentSeek=null;
-        if(ReferenceEquals(player,pending.Host)&&part?.Cid==pending.Cid)ApplyCommentSeek(pending.Seconds);
     }
     private void ApplyCommentSeek(double seconds)
     {
-        if(player?.Ready!=true||part==null)return;var duration=player.Number("duration");
+        if(player?.CanInteract!=true||part==null)return;var duration=player.Number("duration");
         if(seconds<0||seconds>(duration>0?duration:part.Duration))return;
         player.Command("seek",seconds.ToString(CultureInfo.InvariantCulture),"absolute+exact");player.Set("pause","no");
         if(seek!=null)seek.Value=seconds;

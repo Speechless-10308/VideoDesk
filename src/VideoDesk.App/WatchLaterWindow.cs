@@ -48,7 +48,7 @@ internal sealed class WatchLaterWindow : Window
     private IReadOnlyList<VideoPart> parts=[];
     private int page,revision,requestedSegment;
     private long total;
-    private bool more,busy,closed,dragging,reporting;
+    private bool more,busy,closed,reporting;
     private DateTime lastSave,lastReport;
     internal Task InitialLoad {get;private set;}=Task.CompletedTask;
     internal Task HistorySync {get;private set;}=Task.CompletedTask;
@@ -75,7 +75,7 @@ internal sealed class WatchLaterWindow : Window
         time.FontSize=11;time.Foreground=muted;time.VerticalAlignment=VerticalAlignment.Center;time.HorizontalAlignment=HorizontalAlignment.Center;time.Text="00:00 / 00:00";Place(time,3);
         var mute=IconButton(PackIconKind.VolumeHigh,"静音 / 恢复声音");mute.Click+=(_,_)=>{player?.Command("cycle","mute");((PackIcon)mute.Content).Kind=player?.Text("mute")=="yes"?PackIconKind.VolumeOff:PackIconKind.VolumeHigh;};Place(mute,4);
         var expand=IconButton(PackIconKind.OpenInNew,"在主窗口观看");expand.Click+=async(_,_)=>{if(current is {} item){Save();Pause();await Safe(()=>openMain(item));}};Place(expand,5);controls.Children.Add(actions);Grid.SetRow(controls,2);root.Children.Add(controls);
-        timeline.PreviewMouseLeftButtonDown+=(_,_)=>dragging=true;timeline.PreviewMouseLeftButtonUp+=(_,_)=>Seek();timeline.LostMouseCapture+=(_,_)=>{if(dragging)Seek();};timeline.KeyUp+=(_,_)=>Seek();
+        timeline.SeekRequested+=position=>player?.Command("seek",position.ToString(System.Globalization.CultureInfo.InvariantCulture),"absolute+exact");
         var queueHeader=new DockPanel{Margin=new(20,10,16,8)};refresh=IconButton(PackIconKind.Refresh,"刷新稍后再看");refresh.Click+=async(_,_)=>await LoadPage(true);DockPanel.SetDock(refresh,Dock.Right);queueHeader.Children.Add(refresh);count.FontSize=14;count.FontWeight=FontWeights.SemiBold;count.VerticalAlignment=VerticalAlignment.Center;queueHeader.Children.Add(count);Grid.SetRow(queueHeader,3);root.Children.Add(queueHeader);
         var listHost=new Grid{Margin=new(10,0,8,12)};listHost.RowDefinitions.Add(new(){Height=GridLength.Auto});listHost.RowDefinitions.Add(new());scroll=new SmoothScrollViewer{VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,ShowBackToTop=false};rows=new(()=>scroll,Row,item=>(item.Video.Aid,item.Video.Title,current?.Video.Aid==item.Video.Aid),88);scroll.Content=rows;Grid.SetRow(scroll,1);listHost.Children.Add(scroll);
         notice.FontSize=13;notice.Foreground=muted;notice.TextWrapping=TextWrapping.Wrap;notice.TextAlignment=TextAlignment.Center;notice.Margin=new(20);notice.VerticalAlignment=VerticalAlignment.Center;notice.Visibility=Visibility.Collapsed;listHost.Children.Add(notice);
@@ -147,15 +147,30 @@ internal sealed class WatchLaterWindow : Window
         var stream=await api.GetPlayStream(item.Video.Bvid,part.Cid,32,ct);ct.ThrowIfCancellationRequested();if(stamp!=revision)return;await MpvHost.WaitForShutdownCapacityAsync(ct);ct.ThrowIfCancellationRequested();
         player=new(preferences.HardwareDecoding);stageContent.Children.Insert(0,player);poster.Visibility=posterPlay.Visibility=Visibility.Collapsed;stage.UpdateLayout();await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.Loaded);ct.ThrowIfCancellationRequested();
         var host=player;var dmSettings=new DanmakuPreferences{FontScale=.7,Area=.4,PersonMask=false,Advanced=false,Opacity=preferences.Danmaku.Opacity,BlockedWords=preferences.Danmaku.BlockedWords,SyncedFilters=preferences.Danmaku.SyncedFilters.ToList()};
-        var renderer=new DanmakuSurface(()=>(host.Number("time-pos"),host.Text("pause")=="yes"||host.Text("paused-for-cache")=="yes",host.Number("speed")),dmSettings);
+        var renderer=new DanmakuSurface(()=>(host.Number("time-pos"),host.Text("pause")=="yes"||host.Text("paused-for-cache")=="yes",host.Number("speed")),dmSettings,()=>!host.CanInteract||host.Seeking);
+        host.StateChanged+=name=>{if(name=="seeking")renderer.Wake();};
         overlay=new(this,stage,new Border{Height=0},TogglePause,forward=>host.Command("seek",forward?"10":"-10","relative+exact"),e=>{if(e.Key==Key.Space){TogglePause();e.Handled=true;}},renderer,(_,_)=>Task.CompletedTask,_=>Task.CompletedTask,_=>Task.FromResult(new DanmakuLikeState(false,0)),allowDanmakuActions:false);
-        timeline.Maximum=part.Duration;preview=new(timeline,overlay,api,images,info.Video.Bvid,part.Cid);host.PlaybackEnded+=endedRevision=>{if(ReferenceEquals(player,host)&&endedRevision==host.LoadRevision)_=Dispatcher.BeginInvoke(async()=>await Safe(CompleteVideo));};host.PlaybackFailed+=message=>{notice.Text=message;notice.Visibility=Visibility.Visible;};host.Load(stream,start);play.Content=new PackIcon{Kind=PackIconKind.Pause,Width=20,Height=20};tick.Start();Poll();
+        void UpdatePresentation()
+        {
+            if(!ReferenceEquals(player,host))return;
+            overlay?.SetPlaybackPresentation(host.Presentation,host.LoadingMessage,host.LastNativeError,async()=>await Safe(()=>Play(current??item)));
+            timeline.IsEnabled=play.IsEnabled=host.CanInteract;
+        }
+        host.PresentationChanged+=UpdatePresentation;UpdatePresentation();
+        timeline.Maximum=part.Duration;preview=new(timeline,overlay,api,images,info.Video.Bvid,part.Cid);
+        host.PlaybackEnded+=endedRevision=>
+        {
+            _=Dispatcher.BeginInvoke(async()=>
+            {
+                if(ReferenceEquals(player,host)&&endedRevision==host.LoadRevision&&host.CompletionPending)await Safe(CompleteVideo);
+            });
+        };
+        host.PlaybackFailed+=message=>{notice.Text=message;notice.Visibility=Visibility.Visible;};host.Load(stream,start);play.Content=new PackIcon{Kind=PackIconKind.Pause,Width=20,Height=20};tick.Start();Poll();
     }
     private Task CompleteVideo()=>current is {} item&&parts.FirstOrDefault(p=>p.Page>part?.Page) is {} following?Play(item with{Cid=following.Cid,Progress=0},resume:false):Step(1);
-    private void Seek(){if(!dragging&&player==null)return;player?.Command("seek",timeline.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),"absolute+exact");dragging=false;}
     internal void Pause(){player?.Set("pause","yes");play.Content=new PackIcon{Kind=PackIconKind.Play,Width=20,Height=20};Save();}
     internal void SuspendPlayback(){Save(true);StopPlayback();poster.Visibility=posterPlay.Visibility=Visibility.Visible;play.Content=new PackIcon{Kind=PackIconKind.Play,Width=20,Height=20};if(current is {} item)_=LoadPoster(item,lifetime.Token);}
-    private void TogglePause(){if(player==null)return;player.Command("cycle","pause");play.Content=new PackIcon{Kind=player.Text("pause")=="yes"?PackIconKind.Play:PackIconKind.Pause,Width=20,Height=20};Save();}
+    private void TogglePause(){if(player?.CanInteract!=true)return;player.Command("cycle","pause");play.Content=new PackIcon{Kind=player.Text("pause")=="yes"?PackIconKind.Play:PackIconKind.Pause,Width=20,Height=20};Save();}
     private async Task Step(int direction)
     {
         var index=items.FindIndex(v=>v.Video.Aid==current?.Video.Aid);if(index<0)return;
@@ -167,7 +182,7 @@ internal sealed class WatchLaterWindow : Window
     }
     private void Poll()
     {
-        if(player?.Ready!=true||current==null||part==null)return;var position=player.Number("time-pos");if(!dragging)timeline.Value=position;time.Text=BilibiliClient.DurationLabel(position)+" / "+BilibiliClient.DurationLabel(part.Duration);
+        if(player?.MediaReady!=true||current==null||part==null)return;var position=player.Number("time-pos");if(!player.Seeking)timeline.SetPlaybackPosition(position);time.Text=BilibiliClient.DurationLabel(position)+" / "+BilibiliClient.DurationLabel(part.Duration);
         if(DateTime.UtcNow-lastSave>TimeSpan.FromSeconds(5)){lastSave=DateTime.UtcNow;Save();}
         var segment=(int)(position/360)+1;if(segment!=requestedSegment){requestedSegment=segment;_=LoadDanmaku(part.Cid,segment,revision,playback!.Token);}
     }
@@ -190,6 +205,6 @@ internal sealed class WatchLaterWindow : Window
             reporting=true;lastReport=DateTime.UtcNow;HistorySync=Report();async Task Report(){try{await api.ReportHistory(video.Bvid,progress.Cid,progress.Position,aid:video.Aid,duration:part.Duration);}catch(Exception){}finally{reporting=false;}}
         }
     }
-    private void StopPlayback(){revision++;tick.Stop();playback?.Cancel();playback?.Dispose();playback=null;preview?.Dispose();preview=null;overlay?.Dispose();overlay=null;if(player!=null){stageContent.Children.Remove(player);player.Dispose();player=null;}requestedSegment=0;part=null;}
+    private void StopPlayback(){revision++;tick.Stop();play.IsEnabled=true;timeline.IsEnabled=false;playback?.Cancel();playback?.Dispose();playback=null;preview?.Dispose();preview=null;overlay?.Dispose();overlay=null;if(player!=null){stageContent.Children.Remove(player);player.Dispose();player=null;}requestedSegment=0;part=null;}
     private void Release(){if(closed)return;closed=true;Save(true);lifetime.Cancel();StopPlayback();poster.Source=null;rows.SetItems([]);lifetime.Dispose();}
 }

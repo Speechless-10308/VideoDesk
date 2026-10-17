@@ -31,12 +31,13 @@ internal sealed class DanmakuSurface : FrameworkElement,IDisposable
     internal bool MeasureFrames {get;set;}
     private IReadOnlyList<DanmakuItem> messages=[];
     private readonly Func<(double Position,bool Paused,double Speed)> clock;
+    private readonly Func<bool> waitingForFrame;
     private readonly DanmakuPreferences settings;
     private readonly Stopwatch watch=Stopwatch.StartNew();
     private readonly PlaybackClock timeline=new();
     private TimeSpan renderedAt=TimeSpan.MinValue;
     private double sampledAt,sampledSpeed=1,lastPosition=-100;
-    private bool sampledPaused,enabled=true,disposed,coldCursor;
+    private bool sampledPaused,enabled=true,disposed,coldCursor,awaitingFrame;
     private int next;
     private Entry? hovered;
     private int frames,maxActive;
@@ -60,9 +61,9 @@ internal sealed class DanmakuSurface : FrameworkElement,IDisposable
     {
         public DanmakuItem Item=item;public DrawingVisual Visual=visual;public MatrixTransform Transform=transform;public double Width=width,Height=height,Start=item.Time,Duration,Y,X,Velocity,HeldAt=-1;public bool Fixed,Advanced;public Point From,To;public double Rotation,AdvancedOpacity=1;
     }
-    public DanmakuSurface(Func<(double Position,bool Paused,double Speed)> clock,DanmakuPreferences settings)
+    public DanmakuSurface(Func<(double Position,bool Paused,double Speed)> clock,DanmakuPreferences settings,Func<bool>? waitingForFrame=null)
     {
-        this.clock=clock;this.settings=settings;visuals=new(this);ClipToBounds=true;IsHitTestVisible=false;
+        this.clock=clock;this.settings=settings;this.waitingForFrame=waitingForFrame??(()=>false);visuals=new(this);ClipToBounds=true;IsHitTestVisible=false;
         Loaded+=(_,_)=>UpdateVisibility();Unloaded+=(_,_)=>{clockTimer.Stop();SetRendering(false);};
         IsVisibleChanged+=(_,_)=>UpdateVisibility();SizeChanged+=(_,_)=>Reset();clockTimer.Tick+=(_,_)=>PollPausedClock();
     }
@@ -80,11 +81,27 @@ internal sealed class DanmakuSurface : FrameworkElement,IDisposable
     public void Wake()
     {
         if(disposed||!enabled||!IsLoaded||!IsVisible)return;
+        if(HoldForFrame())return;
+        if(awaitingFrame){awaitingFrame=false;timeline.Reset();coldCursor=true;}
         sampledAt=-1;renderedAt=TimeSpan.MinValue;SetRendering(true);
+    }
+    private bool HoldForFrame()
+    {
+        if(!waitingForFrame())return false;
+        if(!awaitingFrame)
+        {
+            awaitingFrame=true;visuals.Clear();active.Clear();deferred.Clear();hovered=null;
+            lastPosition=-100;sampledAt=-1;lastClockPosition=double.NaN;timeline.Reset();coldCursor=true;currentMask=null;Clip=null;
+        }
+        // Keep shaped/rasterized glyphs, but never extrapolate decoder time or
+        // publish newly fetched messages before the target frame is playable.
+        SetRendering(false);return true;
     }
     private void PollPausedClock()
     {
         if(rendering||disposed||!enabled||!IsVisible)return;
+        if(HoldForFrame())return;
+        if(awaitingFrame){Wake();return;}
         var sample=clock();
         if(!sample.Paused||double.IsNaN(lastClockPosition)||Math.Abs(sample.Position-lastClockPosition)>.001||shaping.Values.Any(t=>t.IsCompleted)||next<messages.Count&&messages[next].Time<=sample.Position||settings.PersonMask&&!ReferenceEquals(Mask?.At(sample.Position),currentMask))Wake();
     }
@@ -134,6 +151,7 @@ internal sealed class DanmakuSurface : FrameworkElement,IDisposable
     private void Frame(object? sender,EventArgs args)
     {
         if(disposed||!enabled||!IsVisible||ActualWidth<1||ActualHeight<1)return;
+        if(HoldForFrame())return;
         if(args is RenderingEventArgs rendered){if(rendered.RenderingTime==renderedAt)return;renderedAt=rendered.RenderingTime;}
         var cpu=Stopwatch.StartNew();rasterized=0;
         // A lane can become occupied while a glyph is shaping. Completed jobs must

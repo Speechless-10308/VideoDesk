@@ -17,7 +17,7 @@ public sealed partial class MainWindow
     {
         playerFeaturesSession?.Cancel();playerFeaturesSession?.Dispose();playerFeaturesSession=null;
         videoChapters=[];if(chapterButton!=null)chapterButton.Visibility=Visibility.Collapsed;
-        (seek as PlaybackTimeline)?.SetChapters([]);overlay?.Interactions.SetItems([],null);overlay?.ClosePanel();
+        seek?.SetChapters([]);overlay?.Interactions.SetItems([],null);overlay?.ClosePanel();
         if(overlay==null||detail==null||part==null)return;
         playerFeaturesSession=CancellationTokenSource.CreateLinkedTokenSource(navigation.Token);
         _=LoadPlayerFeatures(detail.Video.Bvid,detail.Video.Aid,part.Cid,playerFeaturesSession.Token);
@@ -30,7 +30,7 @@ public sealed partial class MainWindow
             {
                 var chapters=await api.GetVideoChapters(bvid,cid,ct);ct.ThrowIfCancellationRequested();
                 if(part?.Cid!=cid||detail?.Video.Bvid!=bvid)return;
-                videoChapters=chapters;(seek as PlaybackTimeline)?.SetChapters(chapters);storyboardPreview?.SetChapters(chapters);
+                videoChapters=chapters;seek?.SetChapters(chapters);storyboardPreview?.SetChapters(chapters);
                 if(chapterButton!=null)chapterButton.Visibility=chapters.Count==0?Visibility.Collapsed:Visibility.Visible;
                 UpdatePlayerFeatures(player?.Number("time-pos")??0);
             }
