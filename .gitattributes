@@ -1,0 +1,12 @@
+* text=auto
+*.cs text eol=lf
+*.csproj text eol=lf
+*.ps1 text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.xaml text eol=lf
+*.png binary
+*.jpg binary
+*.zip binary
+*.exe binary
+*.dll binary

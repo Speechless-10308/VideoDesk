@@ -1,0 +1,91 @@
+{
+  "binarySha256": "dfbec9a5511749374bf7e2261c1040bc65dbfa35c9825c5425a202c4a9c2eccd",
+  "sourceReadme": "https://downloads.theiaplayer.com/source/README.txt",
+  "files": [
+    {
+      "name": "build-logs-x86_64-lgpl.7z",
+      "sha256": "c1f2c7bffc5f7ca6d01b6f86e31690176d3cff5b4c39626a222ed4eb9df523fa",
+      "url": "https://downloads.theiaplayer.com/source/windows/build/build-logs-x86_64-lgpl.7z"
+    },
+    {
+      "name": "ffmpeg-7523428c26bd.tar.gz",
+      "sha256": "0c9b5ee318d8258bcaad4a6da2c1b3a37190a5252ec401ce47bf119c337c8518",
+      "url": "https://downloads.theiaplayer.com/source/windows/ffmpeg/ffmpeg-7523428c26bd.tar.gz"
+    },
+    {
+      "name": "fribidi-c928e4c77549.tar.gz",
+      "sha256": "9a4bb6ec1a1aff287a6b5e3ff6112cb1fa6c066697674c6b0b8fd5260ee904ba",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/fribidi-c928e4c77549.tar.gz"
+    },
+    {
+      "name": "lame-9a5b35c430a2.tar.gz",
+      "sha256": "4f084586451024448b2243e0d360e722540377a96e531eb04ad4c07735bb2dce",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/lame-9a5b35c430a2.tar.gz"
+    },
+    {
+      "name": "libbluray-a24f4fad4d62.tar.gz",
+      "sha256": "f596c2ede4131fa4471bb292c28c327ea2115b1a3ea010d6ddfb75f0935600b7",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/libbluray-a24f4fad4d62.tar.gz"
+    },
+    {
+      "name": "libiconv-1.18.tar.gz",
+      "sha256": "3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/libiconv-1.18.tar.gz"
+    },
+    {
+      "name": "libplacebo-3330a515d621.tar.gz",
+      "sha256": "57b8b2beaba218523cef9839af12c9d44785b6cf8e5f79ca3aa55367d7420c80",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/libplacebo-3330a515d621.tar.gz"
+    },
+    {
+      "name": "libssh-10ad060693be.tar.gz",
+      "sha256": "23a188d9bd93bc0a86b131537f0971a7d26403da3936d4f31cd5356ea5f1ff61",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/libssh-10ad060693be.tar.gz"
+    },
+    {
+      "name": "libudfread-b0bc6957e7e0.tar.gz",
+      "sha256": "c04bb96b72dd0760030d880ad6c9ea2ae80abbdd648de127adb1b2e8555186aa",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/libudfread-b0bc6957e7e0.tar.gz"
+    },
+    {
+      "name": "mpv-13a4bfbc1a18.tar.gz",
+      "sha256": "b1f0096a6b9c56b74596928148868c9f0c7d5283bb8c26e5584b85d3f9e2867e",
+      "url": "https://downloads.theiaplayer.com/source/windows/libmpv/mpv-13a4bfbc1a18.tar.gz"
+    },
+    {
+      "name": "mpv-winbuild-6b1bb015c46e.tar.gz",
+      "sha256": "9f26d2fd4ebb5918412f859f1ae021c023ee0c304e2fed7a94e036cb149b2576",
+      "url": "https://downloads.theiaplayer.com/source/windows/build/mpv-winbuild-6b1bb015c46e.tar.gz"
+    },
+    {
+      "name": "mpv-winbuild-cmake-cd1edc11dc68-as-built.tar.gz",
+      "sha256": "e50a25a52b89db325aea4e9924d1f98fe078e7004b178100b33bea1554ccbd11",
+      "url": "https://downloads.theiaplayer.com/source/windows/build/mpv-winbuild-cmake-cd1edc11dc68-as-built.tar.gz"
+    },
+    {
+      "name": "mpv-winbuild-cmake-cd1edc11dc68.tar.gz",
+      "sha256": "8b92a254771496b0dcc23017c2734bfa7545441d3e6a37958b063d6e7814a657",
+      "url": "https://downloads.theiaplayer.com/source/windows/build/mpv-winbuild-cmake-cd1edc11dc68.tar.gz"
+    },
+    {
+      "name": "openal-soft-adf57df6fcd1.tar.gz",
+      "sha256": "76087819e1a6edd5efb18494a9d59e38d61e3467ee31da7c6652f0f98dd3788f",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/openal-soft-adf57df6fcd1.tar.gz"
+    },
+    {
+      "name": "soxr-945b592b7047.tar.gz",
+      "sha256": "ae970b44833c7dd2b088d5928b27c7f1796198ff5bc5386b90393aaf33e53d51",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/soxr-945b592b7047.tar.gz"
+    },
+    {
+      "name": "subrandr-a4b5e7b21790.tar.gz",
+      "sha256": "810d6913478f9678c710e482310274cdfd91b219ba926bbcb2703fad46992ea7",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/subrandr-a4b5e7b21790.tar.gz"
+    },
+    {
+      "name": "uchardet-06029ec3340c.tar.gz",
+      "sha256": "c1113a8b7fbaa31d840765c16b13b697140444d20b93a7e45a9a9484f47dac47",
+      "url": "https://downloads.theiaplayer.com/source/windows/libs/uchardet-06029ec3340c.tar.gz"
+    }
+  ]
+}

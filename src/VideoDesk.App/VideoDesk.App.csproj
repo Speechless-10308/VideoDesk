@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>VideoDesk</AssemblyName>
+    <Version>0.1.1</Version>
+    <ApplicationIcon>Assets/AppIcon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../VideoDesk.Core/VideoDesk.Core.csproj" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.3.2" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../.tools/mpv/libmpv-2.dll" Link="libmpv-2.dll" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+    <Content Include="../../LICENSE;../../README.md;../../THIRD-PARTY-NOTICES.md" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../.tools/mpv/sources/*" Link="licenses/libmpv/sources/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../assets/readme-cover.png" Link="assets/readme-cover.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Resource Include="Assets/Official/*.json" />
+    <Resource Include="Assets/AppIcon.ico" />
+    <Resource Include="Assets/AppIcon.png" />
+  </ItemGroup>
+</Project>
+
+
+

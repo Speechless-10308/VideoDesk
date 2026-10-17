@@ -1,0 +1,107 @@
+<Application x:Class="VideoDesk.App.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes" xmlns:local="clr-namespace:VideoDesk.App" xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <md:BundledTheme BaseTheme="Light" PrimaryColor="Pink" SecondaryColor="Pink" />
+        <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
+      </ResourceDictionary.MergedDictionaries>
+      <SolidColorBrush x:Key="Accent" Color="#FF478C" />
+      <SolidColorBrush x:Key="Ink" Color="#20232B" />
+      <SolidColorBrush x:Key="Muted" Color="#858B9D" />
+      <SolidColorBrush x:Key="UiSurface" Color="#F6EFF5" /><SolidColorBrush x:Key="UiCanvas" Color="#FFFBFF" /><SolidColorBrush x:Key="UiOutline" Color="#EBE2EB" /><SolidColorBrush x:Key="UiSelected" Color="#FFE5F0" />
+      <FontFamily x:Key="AppFont">Segoe UI, Microsoft YaHei UI</FontFamily>
+      <Style TargetType="TextBlock"><Setter Property="FontFamily" Value="{StaticResource AppFont}" /></Style>
+      <Style TargetType="ToolTip"><Setter Property="FontFamily" Value="{StaticResource AppFont}" /><Setter Property="TextOptions.TextFormattingMode" Value="Display" /></Style>
+      <Style TargetType="ScrollBar">
+        <Style.Resources>
+          <!-- Track uses half of these values as its minimum thumb length.
+               Setting only Thumb.MinHeight causes clipping in long lists. -->
+          <sys:Double x:Key="{x:Static SystemParameters.VerticalScrollBarButtonHeightKey}">56</sys:Double>
+          <sys:Double x:Key="{x:Static SystemParameters.HorizontalScrollBarButtonWidthKey}">56</sys:Double>
+        </Style.Resources>
+        <Setter Property="Width" Value="8" /><Setter Property="Background" Value="Transparent" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+          <Grid Background="Transparent"><Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}" ViewportSize="{TemplateBinding ViewportSize}" IsDirectionReversed="True">
+            <Track.DecreaseRepeatButton><RepeatButton x:Name="Decrease" Style="{x:Null}" Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton>
+            <Track.Thumb><Thumb x:Name="ScrollGrip" Style="{x:Null}" MinHeight="0" MinWidth="0" Height="Auto" Width="Auto" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"><Thumb.Template><ControlTemplate TargetType="Thumb"><Border x:Name="Grip" Background="#CFD4DE" CornerRadius="4" Margin="1" /><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Grip" Property="Background" Value="#A7AEBE" /></Trigger><Trigger Property="IsDragging" Value="True"><Setter TargetName="Grip" Property="Background" Value="#FF478C" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+            <Track.IncreaseRepeatButton><RepeatButton x:Name="Increase" Style="{x:Null}" Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton>
+          </Track></Grid>
+          <ControlTemplate.Triggers><Trigger Property="Orientation" Value="Horizontal">
+            <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+            <Setter TargetName="Decrease" Property="Command" Value="ScrollBar.PageLeftCommand" /><Setter TargetName="Increase" Property="Command" Value="ScrollBar.PageRightCommand" />
+          </Trigger></ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+        <Style.Triggers><Trigger Property="Orientation" Value="Horizontal"><Setter Property="Width" Value="Auto" /><Setter Property="Height" Value="8" /></Trigger></Style.Triggers>
+      </Style>
+      <Style x:Key="CompactChoiceItem" TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{DynamicResource Ink}" /><Setter Property="FontSize" Value="13" /><Setter Property="Padding" Value="12,9" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem">
+          <Border x:Name="ItemSurface" Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}" Margin="0,1">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" /><md:PackIcon x:Name="SelectedMark" Grid.Column="1" Kind="Check" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Right" Visibility="Hidden" /></Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource UiSurface}" /></Trigger>
+            <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="#FF478C" /><Setter TargetName="SelectedMark" Property="Visibility" Value="Visible" /><Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource UiSelected}" /></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="CompactChoice" TargetType="ComboBox">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" /><Setter Property="FontSize" Value="13" /><Setter Property="Foreground" Value="{DynamicResource Ink}" /><Setter Property="Background" Value="{DynamicResource UiSurface}" /><Setter Property="Height" Value="36" /><Setter Property="Padding" Value="12,0,10,0" /><Setter Property="Cursor" Value="Hand" /><Setter Property="ItemContainerStyle" Value="{StaticResource CompactChoiceItem}" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" /><Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" /><Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+        <Setter Property="ItemsPanel"><Setter.Value><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></Setter.Value></Setter>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
+          <Grid x:Name="ChoiceRoot">
+            <Border Background="{TemplateBinding Background}" CornerRadius="12" />
+            <Grid Margin="{TemplateBinding Padding}" IsHitTestVisible="False">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="24" /></Grid.ColumnDefinitions>
+              <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <md:PackIcon Grid.Column="1" Kind="ChevronDown" Width="16" Height="16" Foreground="{DynamicResource Muted}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+            <ToggleButton Style="{x:Null}" Focusable="False" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+              <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+                <Border x:Name="ChoiceState" Background="#FF478C" Opacity="0" CornerRadius="12" />
+                <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ChoiceState" Property="Opacity" Value="0.06" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="ChoiceState" Property="Opacity" Value="0.12" /></Trigger></ControlTemplate.Triggers>
+              </ControlTemplate></ToggleButton.Template>
+            </ToggleButton>
+            <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="None">
+              <Border Background="{DynamicResource UiCanvas}" BorderBrush="{DynamicResource UiOutline}" BorderThickness="1" CornerRadius="12" Padding="4" Margin="0,6,0,4" MinWidth="{Binding ActualWidth, ElementName=ChoiceRoot}">
+                <ScrollViewer MaxHeight="300" CanContentScroll="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" /></ScrollViewer>
+              </Border>
+            </Popup>
+          </Grid>
+          <ControlTemplate.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger></ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="KeyboardButtonFocus" TargetType="Control">
+        <Setter Property="Template"><Setter.Value><ControlTemplate>
+          <Rectangle Margin="2" RadiusX="6" RadiusY="6" Stroke="{StaticResource Accent}" StrokeThickness="1" StrokeDashArray="2 2" SnapsToDevicePixels="True" IsHitTestVisible="False" />
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="PlainButton" TargetType="Button">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource KeyboardButtonFocus}" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" /><Setter Property="Cursor" Value="Hand" /><Setter Property="Foreground" Value="{DynamicResource Ink}" /><Setter Property="Background" Value="Transparent" /><Setter Property="Padding" Value="12,6" /><Setter Property="MinWidth" Value="0" /><Setter Property="Height" Value="40" /><Setter Property="BorderThickness" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" /><Setter Property="md:ButtonAssist.CornerRadius" Value="12" />
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+          <Grid><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{Binding Path=(md:ButtonAssist.CornerRadius), RelativeSource={RelativeSource TemplatedParent}}" />
+            <Border x:Name="StateLayer" Background="#FF478C" Opacity="0" CornerRadius="{Binding Path=(md:ButtonAssist.CornerRadius), RelativeSource={RelativeSource TemplatedParent}}" IsHitTestVisible="False" />
+            <local:ButtonRipple CornerRadius="{Binding Path=(md:ButtonAssist.CornerRadius), RelativeSource={RelativeSource TemplatedParent}}" x:Name="ClickRipple" ClipToBounds="True" Feedback="{TemplateBinding Foreground}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+              <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+            </local:ButtonRipple>
+          </Grid>
+          <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="StateLayer" Property="Opacity" Value="0.06" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="StateLayer" Property="Opacity" Value="0.12" /></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger></ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="PlayerControlLabel" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}" /><Setter Property="FontSize" Value="13" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="LineHeight" Value="18" /><Setter Property="LineStackingStrategy" Value="BlockLineHeight" /><Setter Property="VerticalAlignment" Value="Center" />
+      </Style>
+      <Style x:Key="PlayerTextButton" TargetType="Button" BasedOn="{StaticResource PlainButton}">
+        <Setter Property="Height" Value="32" /><Setter Property="FontSize" Value="13" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="ContentTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" Style="{StaticResource PlayerControlLabel}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /></DataTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="PictureViewerButton" TargetType="Button" BasedOn="{StaticResource PlainButton}">
+        <Setter Property="Height" Value="44" /><Setter Property="Padding" Value="10" />
+      </Style>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

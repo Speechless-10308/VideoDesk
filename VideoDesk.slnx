@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VideoDesk.Core/VideoDesk.Core.csproj" />
+    <Project Path="src/VideoDesk.App/VideoDesk.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VideoDesk.Core.Tests/VideoDesk.Core.Tests.csproj" />
+  </Folder>
+</Solution>

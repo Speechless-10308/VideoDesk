@@ -1,0 +1,18 @@
+{
+  "mpv": {
+    "name": "Theia-0.4.0-portable.zip",
+    "sha256": "b18abe1e6cd548b363ae30cee8ed2dfa7b7823c91acf7dcafbcd9604bd4414cb",
+    "url": "https://theiaplayer.com/get/0.4.0/Theia-0.4.0-portable.zip",
+    "entry": "Theia\\libmpv-2.dll",
+    "version": "v0.41.0-1048-g13a4bfbc1",
+    "ffmpegVersion": "N-126537-g7523428c2",
+    "license": "LGPL-3.0-or-later",
+    "upstreamRelease": "https://github.com/zhongfly/mpv-winbuild/releases/tag/2026-09-13-13a4bfbc1a"
+  },
+  "dotnet": {
+    "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.401/dotnet-sdk-10.0.401-win-x64.zip",
+    "sha512": "24b670ad3d923bfcf47df6c3b034152398b42f6dbc388e10d783aee1cfb5e5817d399fc0ae2a12cfa822a55e61d34830ccb15c50ef6efee437ab874bb7c79430",
+    "version": "10.0.401"
+  },
+  "libmpvDllSha256": "dfbec9a5511749374bf7e2261c1040bc65dbfa35c9825c5425a202c4a9c2eccd"
+}

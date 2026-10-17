@@ -1,0 +1,15 @@
+.tools/
+.downloads/
+.local/
+.reference/
+.jj/
+**/bin/
+**/obj/
+/artifacts/
+/captures/
+*.user
+*.suo
+/designs/
+/docs/
+**/TestResults/
+.vs/
